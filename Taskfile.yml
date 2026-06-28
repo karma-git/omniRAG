@@ -35,6 +35,23 @@ tasks:
       - task: test
       - task: test:smoke
 
+  # ── Indexer ──────────────────────────────────────────────────────────────────
+
+  index:
+    desc: "Index docs via Docker  |  task index -- --docs-dir ./my_docs"
+    cmds:
+      - docker compose run --rm indexer {{.CLI_ARGS}}
+
+  index:ai:
+    desc: "Index docs with AI proposition extraction  |  task index:ai -- --docs-dir ./my_docs"
+    cmds:
+      - docker compose run --rm indexer --extract-propositions {{.CLI_ARGS}}
+
+  index:rebuild:
+    desc: "Force full re-index (bypass embed cache)"
+    cmds:
+      - docker compose run --rm indexer --no-cache {{.CLI_ARGS}}
+
   # ── Docker ───────────────────────────────────────────────────────────────────
 
   docker:build:
