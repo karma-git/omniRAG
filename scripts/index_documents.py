@@ -19,6 +19,7 @@ Output files:
   <out-dir>/faiss.index
   <out-dir>/chunks_meta.json   — list of {"text": str, "source": str, "chunk_id": int}
 """
+
 from __future__ import annotations
 
 import argparse
@@ -26,16 +27,16 @@ import json
 import os
 import sys
 import textwrap
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 
 import faiss
 import numpy as np
 from loguru import logger
 from openai import OpenAI
 
-
 # ── Text extraction ───────────────────────────────────────────────────────────
+
 
 def extract_text_txt(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
@@ -48,9 +49,7 @@ def extract_text_pdf(path: Path) -> str:
         logger.warning("pypdf not installed — skipping {}", path)
         return ""
     reader = pypdf.PdfReader(str(path))
-    return "\n".join(
-        page.extract_text() or "" for page in reader.pages
-    )
+    return "\n".join(page.extract_text() or "" for page in reader.pages)
 
 
 _EXTRACTORS = {
@@ -80,12 +79,15 @@ def iter_documents(docs_dir: Path, recursive: bool) -> Iterator[tuple[Path, str]
 
 # ── Chunking ──────────────────────────────────────────────────────────────────
 
+
 def chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
     """
     Split text into overlapping character-level chunks.
     Tries to break at sentence boundaries ('. ', '! ', '? ', '\n\n') when possible.
     """
     text = text.strip()
+    if not text:
+        return []
     if len(text) <= chunk_size:
         return [text]
 
@@ -116,6 +118,7 @@ def chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
+
 def build_index(
     docs_dir: Path,
     out_dir: Path,
@@ -131,11 +134,13 @@ def build_index(
     chunk_id = 0
     for doc_path, text in iter_documents(docs_dir, recursive):
         for chunk in chunk_text(text, chunk_size, overlap):
-            all_chunks.append({
-                "text": chunk,
-                "source": str(doc_path.name),
-                "chunk_id": chunk_id,
-            })
+            all_chunks.append(
+                {
+                    "text": chunk,
+                    "source": str(doc_path.name),
+                    "chunk_id": chunk_id,
+                }
+            )
             chunk_id += 1
 
     if not all_chunks:
@@ -177,7 +182,10 @@ def build_index(
 
     logger.success(
         "Index built | vectors={} dim={} -> {} + {}",
-        index.ntotal, dim, index_path, meta_path,
+        index.ntotal,
+        dim,
+        index_path,
+        meta_path,
     )
 
 
