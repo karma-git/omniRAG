@@ -7,9 +7,8 @@ Required ENV:
   OPENAI_MAX_TOKENS    (default: 1024)
   OPENAI_TEMPERATURE   (default: 0.2)
 """
-from __future__ import annotations
 
-from typing import List
+from __future__ import annotations
 
 from loguru import logger
 from openai import AsyncOpenAI
@@ -34,7 +33,7 @@ class OpenAIProvider(BaseLLMProvider):
     async def generate_response(
         self,
         system_prompt: str,
-        context_chunks: List[str],
+        context_chunks: list[str],
         user_query: str,
     ) -> str:
         logger.debug(

@@ -21,10 +21,10 @@ Optional ENV:
   DISCORD_ALLOWED_CHANNEL_IDS  (comma-separated channel IDs, empty = all channels)
   DISCORD_REQUIRE_MENTION      (default: true)
 """
+
 from __future__ import annotations
 
 import time
-from typing import Optional
 
 import discord
 from loguru import logger
@@ -64,7 +64,9 @@ class DiscordChannel(BaseChannel):
             user = self._client.user
             logger.info(
                 "Discord bot ready | user={} id={} modes={}",
-                user, user.id if user else "?", modes,
+                user,
+                user.id if user else "?",
+                modes,
             )
 
         @self._client.event
@@ -88,7 +90,8 @@ class DiscordChannel(BaseChannel):
             text = message.content.strip()
             logger.info(
                 "Discord DM | user={} preview='{}'",
-                message.author, text[:60],
+                message.author,
+                text[:60],
             )
 
         elif is_guild:
@@ -110,7 +113,10 @@ class DiscordChannel(BaseChannel):
 
             logger.info(
                 "Discord server message | guild={} channel={} user={} preview='{}'",
-                message.guild.id, message.channel.id, message.author, text[:60],
+                message.guild.id,
+                message.channel.id,
+                message.author,
+                text[:60],
             )
 
         else:
@@ -151,7 +157,7 @@ class DiscordChannel(BaseChannel):
         self,
         target_id: str,
         text: str,
-        thread_id: Optional[str] = None,
+        thread_id: str | None = None,
     ) -> None:
         channel = self._client.get_channel(int(target_id))
         if channel is None:
@@ -161,6 +167,7 @@ class DiscordChannel(BaseChannel):
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def _strip_mention(text: str, bot_id: int) -> str:
     """Remove <@BOT_ID> and <@!BOT_ID> (nickname mention) from message text."""
