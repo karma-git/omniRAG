@@ -60,6 +60,11 @@ def main() -> None:
         default=os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini"),
         help="Chat model used for proposition extraction (default: gpt-4o-mini)",
     )
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="Disable embedding cache and re-embed everything from scratch",
+    )
     args = parser.parse_args()
 
     if not args.docs_dir.exists():
@@ -82,6 +87,7 @@ def main() -> None:
         recursive=args.recursive,
         use_propositions=args.extract_propositions,
         chat_model=args.chat_model,
+        use_cache=not args.no_cache,
     )
 
 

@@ -1,34 +1,31 @@
+x-app: &app
+  image: omnirag:local
+  build:
+    context: .
+    dockerfile: Dockerfile
+  env_file:
+    - .env
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
 services:
 
   # ── Telegram / Slack / Discord bot ────────────────────────────────────────
-  # Set CHAT_PROVIDER in .env to: telegram | slack | discord
+  # Set CHAT_PROVIDER=telegram|slack|discord in .env
   omnirag-bot:
-    image: omnirag:local
-    build:
-      context: .
-      dockerfile: Dockerfile
-    env_file:
-      - .env
+    <<: *app
     volumes:
       - ./data:/app/data:ro
       - ./user:/app/user:ro
-    restart: unless-stopped
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
 
   # ── Web UI + REST API ──────────────────────────────────────────────────────
-  # Browser, Telegram Mini App, Tauri/Electron desktop, React Native — all
-  # consume GET / (Jinja2 HTML) or POST /api/chat (JSON).
+  # Browser · Telegram Mini App · Tauri · React Native → GET / or POST /api/chat
   omnirag-web:
-    image: omnirag:local
-    build:
-      context: .
-      dockerfile: Dockerfile
-    env_file:
-      - .env
+    <<: *app
     environment:
       CHAT_PROVIDER: web
     ports:
@@ -36,25 +33,14 @@ services:
     volumes:
       - ./data:/app/data:ro
       - ./user:/app/user:ro
-    restart: unless-stopped
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
 
-  # ── Indexer (one-off job) ──────────────────────────────────────────────────
-  # docker compose run --rm indexer
+  # ── Indexer (one-off, run via: task index) ────────────────────────────────
   indexer:
-    image: omnirag:local
-    build:
-      context: .
-      dockerfile: Dockerfile
+    <<: *app
     entrypoint: ["python", "-m", "scripts.indexer"]
-    env_file:
-      - .env
+    restart: "no"
     volumes:
-      - ./data:/app/data
-      - ./docs:/app/docs:ro
+      - ./data:/app/data        # rw — writes faiss.index, chunks_meta.json, embed_cache.json
+      - ./docs:/app/docs:ro     # put your .md / .txt / .pdf files here
     profiles:
       - tools

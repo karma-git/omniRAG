@@ -11,6 +11,7 @@ from openai import OpenAI
 
 from app.core.normalizer import normalize
 from scripts.indexer.connectors import iter_documents
+from scripts.indexer.embed_cache import EmbedCache
 from scripts.indexer.propositions import extract_propositions
 
 
@@ -49,6 +50,57 @@ def chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
     return chunks
 
 
+def _embed_texts(
+    texts: list[str],
+    client: OpenAI,
+    model: str,
+    cache: EmbedCache | None,
+    batch_size: int = 100,
+) -> list[list[float]]:
+    """Embed a list of texts, using cache for previously seen ones."""
+    # Split into cached and uncached
+    cached: dict[int, list[float]] = {}
+    uncached_idx: list[int] = []
+    uncached_texts: list[str] = []
+
+    for i, text in enumerate(texts):
+        vec = cache.get(text) if cache else None
+        if vec is not None:
+            cached[i] = vec
+        else:
+            uncached_idx.append(i)
+            uncached_texts.append(text)
+
+    if cache:
+        logger.info(
+            "Embed cache: {} hits, {} misses ({}% saved)",
+            cache.hits,
+            cache.misses,
+            int(100 * cache.hits / len(texts)) if texts else 0,
+        )
+
+    # Call OpenAI only for uncached texts
+    new_vecs: list[list[float]] = []
+    if uncached_texts:
+        logger.info("Embedding {} new texts via OpenAI model={}...", len(uncached_texts), model)
+        for i in range(0, len(uncached_texts), batch_size):
+            batch = uncached_texts[i : i + batch_size]
+            response = client.embeddings.create(model=model, input=batch)
+            batch_vecs = [item.embedding for item in sorted(response.data, key=lambda x: x.index)]
+            new_vecs.extend(batch_vecs)
+            logger.info(
+                "  embedded {}/{}", min(i + batch_size, len(uncached_texts)), len(uncached_texts)
+            )
+
+        if cache:
+            for text, vec in zip(uncached_texts, new_vecs, strict=True):
+                cache.set(text, vec)
+
+    # Reconstruct full list in original order
+    new_iter = iter(new_vecs)
+    return [cached[i] if i in cached else next(new_iter) for i in range(len(texts))]
+
+
 def build_index(
     docs_dir: Path,
     out_dir: Path,
@@ -58,9 +110,14 @@ def build_index(
     recursive: bool,
     use_propositions: bool = False,
     chat_model: str = "gpt-4o-mini",
+    use_cache: bool = True,
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     client = OpenAI()
+
+    cache: EmbedCache | None = None
+    if use_cache:
+        cache = EmbedCache(out_dir / "embed_cache.json")
 
     all_chunks: list[dict] = []
     texts_to_embed: list[str] = []
@@ -101,16 +158,10 @@ def build_index(
     mode = "proposition" if use_propositions else "chunk"
     logger.info("Total {}s to embed: {}", mode, len(texts_to_embed))
 
-    logger.info("Embedding via OpenAI model={}...", embedding_model)
-    batch_size = 100
-    all_vecs: list[list[float]] = []
-    for i in range(0, len(texts_to_embed), batch_size):
-        batch = texts_to_embed[i : i + batch_size]
-        response = client.embeddings.create(model=embedding_model, input=batch)
-        all_vecs.extend(item.embedding for item in sorted(response.data, key=lambda x: x.index))
-        logger.info(
-            "  embedded {}/{}", min(i + batch_size, len(texts_to_embed)), len(texts_to_embed)
-        )
+    all_vecs = _embed_texts(texts_to_embed, client, embedding_model, cache)
+
+    if cache:
+        cache.save()
 
     embeddings = np.array(all_vecs, dtype=np.float32)
     norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
