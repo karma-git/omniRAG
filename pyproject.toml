@@ -1,6 +1,6 @@
 [project]
 name = "omnirag"
-version = "0.1.1"
+version = "v0.1.0"
 description = "Stateless multi-provider RAG chatbot orchestrator"
 requires-python = ">=3.12"
 dependencies = [
@@ -13,6 +13,9 @@ dependencies = [
     "pydantic-settings>=2.3.0",
     "python-dotenv>=1.0.0",
     "loguru>=0.7.2",
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.30.0",
+    "jinja2>=3.1.0",
     "httpx>=0.27.0",
     "boto3>=1.34.0",
     "pypdf>=4.0.0",

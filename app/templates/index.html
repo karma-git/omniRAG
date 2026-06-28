@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en" x-data="chat()" x-init="init()">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>OmniRAG</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 36'%3E%3Crect width='36' height='36' rx='9' fill='url(%23g)'/%3E%3Ccircle cx='18' cy='18' r='4.5' fill='white'/%3E%3Cline x1='18' y1='7' x2='18' y2='13.5' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3Cline x1='18' y1='22.5' x2='18' y2='29' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3Cline x1='7' y1='18' x2='13.5' y2='18' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3Cline x1='22.5' y1='18' x2='29' y2='18' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3Cline x1='10.5' y1='10.5' x2='14.7' y2='14.7' stroke='white' stroke-width='1.5' stroke-linecap='round' opacity='.6'/%3E%3Cline x1='21.3' y1='21.3' x2='25.5' y2='25.5' stroke='white' stroke-width='1.5' stroke-linecap='round' opacity='.6'/%3E%3Cline x1='25.5' y1='10.5' x2='21.3' y2='14.7' stroke='white' stroke-width='1.5' stroke-linecap='round' opacity='.6'/%3E%3Cline x1='10.5' y1='25.5' x2='14.7' y2='21.3' stroke='white' stroke-width='1.5' stroke-linecap='round' opacity='.6'/%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='36' y2='36'%3E%3Cstop offset='0%25' stop-color='%236366f1'/%3E%3Cstop offset='100%25' stop-color='%238b5cf6'/%3E%3C/linearGradient%3E%3C/defs%3E%3C/svg%3E">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.14.0/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: { fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] } } }
+        }
+    </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+        :root {
+            --bg:        #f1f5f9;
+            --surface:   #ffffff;
+            --text:      #0f172a;
+            --muted:     #64748b;
+            --border:    #e2e8f0;
+            --accent:    #6366f1;
+            --user-bg:   #6366f1;
+            --user-text: #ffffff;
+        }
+        .dark {
+            --bg:        #0f172a;
+            --surface:   #1e293b;
+            --text:      #f1f5f9;
+            --muted:     #94a3b8;
+            --border:    #334155;
+            --accent:    #818cf8;
+            --user-bg:   #6366f1;
+            --user-text: #ffffff;
+        }
+
+        body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; }
+
+        .msg-enter { animation: slideUp .18s ease-out; }
+        @keyframes slideUp { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:translateY(0) } }
+
+        /* markdown inside bot bubbles */
+        .prose-chat p          { margin: .2rem 0; }
+        .prose-chat ul         { list-style: disc; padding-left: 1.2rem; margin: .2rem 0; }
+        .prose-chat ol         { list-style: decimal; padding-left: 1.2rem; margin: .2rem 0; }
+        .prose-chat h1,.prose-chat h2,.prose-chat h3 { font-weight:600; margin: .4rem 0 .2rem; }
+        .prose-chat blockquote { border-left: 3px solid var(--accent); padding-left:.6rem; opacity:.8; margin:.2rem 0; }
+        .prose-chat code:not(pre code) {
+            background: rgba(0,0,0,.12); padding:.1em .35em; border-radius:4px; font-size:.85em;
+        }
+        .prose-chat pre        { margin:.4rem 0; border-radius:.6rem; overflow:hidden; }
+        .prose-chat pre code   { display:block; padding:.9rem; overflow-x:auto; font-size:.8rem; }
+        .prose-chat a          { color: var(--accent); text-decoration: underline; }
+
+        /* scrollbar */
+        .scroll::-webkit-scrollbar       { width:5px; }
+        .scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius:3px; }
+
+        /* typing dots */
+        .dots span { display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--muted); animation:dot 1.2s infinite; }
+        .dots span:nth-child(2) { animation-delay:.2s; }
+        .dots span:nth-child(3) { animation-delay:.4s; }
+        @keyframes dot { 0%,80%,100%{transform:scale(.7);opacity:.5} 40%{transform:scale(1);opacity:1} }
+
+        textarea { field-sizing: content; }
+    </style>
+</head>
+
+<body class="h-dvh flex flex-col overflow-hidden" :class="dark ? 'dark' : ''">
+
+    <!-- ── Header ── -->
+    <header class="flex items-center justify-between px-4 py-2.5 border-b shrink-0"
+            style="background:var(--surface); border-color:var(--border)">
+        <!-- Logo -->
+        <a href="/" class="flex items-center gap-2.5 select-none">
+            <svg viewBox="0 0 36 36" fill="none" class="w-8 h-8 shrink-0" xmlns="http://www.w3.org/2000/svg">
+                <rect width="36" height="36" rx="9" fill="url(#logo-grad)"/>
+                <circle cx="18" cy="18" r="4.5" fill="white"/>
+                <line x1="18" y1="7"    x2="18"   y2="13.5" stroke="white" stroke-width="2"   stroke-linecap="round"/>
+                <line x1="18" y1="22.5" x2="18"   y2="29"   stroke="white" stroke-width="2"   stroke-linecap="round"/>
+                <line x1="7"  y1="18"   x2="13.5" y2="18"   stroke="white" stroke-width="2"   stroke-linecap="round"/>
+                <line x1="22.5" y1="18" x2="29"   y2="18"   stroke="white" stroke-width="2"   stroke-linecap="round"/>
+                <line x1="10.5" y1="10.5" x2="14.7" y2="14.7" stroke="white" stroke-width="1.5" stroke-linecap="round" opacity=".55"/>
+                <line x1="21.3" y1="21.3" x2="25.5" y2="25.5" stroke="white" stroke-width="1.5" stroke-linecap="round" opacity=".55"/>
+                <line x1="25.5" y1="10.5" x2="21.3" y2="14.7" stroke="white" stroke-width="1.5" stroke-linecap="round" opacity=".55"/>
+                <line x1="10.5" y1="25.5" x2="14.7" y2="21.3" stroke="white" stroke-width="1.5" stroke-linecap="round" opacity=".55"/>
+                <defs>
+                    <linearGradient id="logo-grad" x1="0" y1="0" x2="36" y2="36">
+                        <stop offset="0%"   stop-color="#6366f1"/>
+                        <stop offset="100%" stop-color="#8b5cf6"/>
+                    </linearGradient>
+                </defs>
+            </svg>
+            <div class="leading-none">
+                <div class="font-semibold text-sm tracking-tight" style="color:var(--text)">OmniRAG</div>
+                <div class="text-xs" style="color:var(--muted)">knowledge assistant</div>
+            </div>
+        </a>
+
+        <!-- Right actions -->
+        <div class="flex items-center gap-1">
+            <!-- System prompt viewer -->
+            <button @click="openPrompt()" title="View system prompt"
+                    class="p-1.5 rounded-lg transition-opacity hover:opacity-60"
+                    style="color:var(--muted)">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+            </button>
+            <!-- Dark mode toggle -->
+            <button @click="toggleDark()" title="Toggle theme"
+                    class="p-1.5 rounded-lg transition-opacity hover:opacity-60"
+                    style="color:var(--muted)">
+                <svg x-show="!dark" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+                </svg>
+                <svg x-show="dark" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- ── System Prompt drawer ── -->
+    <div x-show="promptOpen" x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+         @click.self="promptOpen=false"
+         class="fixed inset-0 z-50 flex justify-end"
+         style="background:rgba(0,0,0,.4); backdrop-filter:blur(2px)">
+        <div x-show="promptOpen"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full"
+             class="w-full max-w-lg flex flex-col shadow-2xl"
+             style="background:var(--surface)">
+            <!-- drawer header -->
+            <div class="flex items-center justify-between px-5 py-4 border-b shrink-0"
+                 style="border-color:var(--border)">
+                <div>
+                    <div class="font-semibold text-sm" style="color:var(--text)">System Prompt</div>
+                    <div class="text-xs mt-0.5" style="color:var(--muted)" x-text="promptSource"></div>
+                </div>
+                <button @click="promptOpen=false" class="p-1.5 rounded-lg hover:opacity-60" style="color:var(--muted)">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <!-- drawer content -->
+            <div class="flex-1 overflow-y-auto scroll px-5 py-4">
+                <div x-show="!promptContent" class="text-sm" style="color:var(--muted)">Loading…</div>
+                <div x-show="promptContent"
+                     class="prose-chat text-sm leading-relaxed"
+                     style="color:var(--text)"
+                     x-html="md(promptContent)"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Messages ── -->
+    <main class="flex-1 overflow-y-auto scroll px-4 py-5 space-y-4" x-ref="feed">
+
+        <!-- welcome -->
+        <div class="flex gap-3 msg-enter" x-show="!messages.length">
+            <div class="avatar" style="background:var(--accent)">R</div>
+            <div class="bubble-bot">
+                <p class="text-sm">Hello! Ask me anything about the knowledge base.</p>
+            </div>
+        </div>
+
+        <template x-for="(m, i) in messages" :key="i">
+            <div class="flex gap-3 msg-enter" :class="m.role==='user' ? 'flex-row-reverse' : ''">
+                <div x-show="m.role==='bot'" class="avatar shrink-0" style="background:var(--accent)">R</div>
+                <div class="flex flex-col gap-1.5 min-w-0">
+                    <div :class="m.role==='user' ? 'bubble-user' : 'bubble-bot prose-chat'"
+                         x-html="m.role==='user' ? esc(m.text) : md(m.text)"></div>
+                    <!-- action buttons — bot messages only -->
+                    <div x-show="m.role==='bot'" class="flex gap-0.5 pl-1">
+                        <!-- copy -->
+                        <button @click="copy(i)" :title="m.copied ? 'Copied!' : 'Copy'"
+                                class="act-btn" :class="m.copied ? 'act-active-green' : ''">
+                            <svg x-show="!m.copied" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                            <svg x-show="m.copied"  class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                        </button>
+                        <!-- like -->
+                        <button @click="sendFeedback(i, 'like')" title="Good response"
+                                class="act-btn" :class="m.liked==='like' ? 'act-active-green' : ''">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"/></svg>
+                        </button>
+                        <!-- dislike -->
+                        <button @click="sendFeedback(i, 'dislike')" title="Bad response"
+                                class="act-btn" :class="m.liked==='dislike' ? 'act-active-red' : ''">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14H5.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 018.736 3h4.018c.163 0 .326.02.485.06L17 4m-7 10v2a2 2 0 002 2h.095c.5 0 .905-.405.905-.905 0-.714.211-1.412.608-2.006L17 13V4m-7 10h2m5-10h2a2 2 0 012 2v6a2 2 0 01-2 2h-2.5"/></svg>
+                        </button>
+                        <!-- retry -->
+                        <button @click="retry(i)" title="Retry" :disabled="loading"
+                                class="act-btn" :class="loading ? 'opacity-30' : ''">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <!-- typing indicator -->
+        <div class="flex gap-3 msg-enter" x-show="loading">
+            <div class="avatar shrink-0" style="background:var(--accent)">R</div>
+            <div class="bubble-bot"><div class="dots"><span></span><span></span><span></span></div></div>
+        </div>
+    </main>
+
+    <!-- ── Input ── -->
+    <footer class="px-4 py-3 border-t shrink-0"
+            style="background:var(--surface); border-color:var(--border); padding-bottom: max(.75rem, env(safe-area-inset-bottom))">
+        <form @submit.prevent="send()" class="flex items-end gap-2">
+            <textarea
+                x-model="input"
+                @keydown.enter.exact.prevent="send()"
+                @keydown.shift.enter="null"
+                :disabled="loading"
+                placeholder="Ask anything…"
+                rows="1"
+                class="flex-1 resize-none rounded-xl px-4 py-2.5 text-sm outline-none transition-shadow min-h-[40px] max-h-[120px]"
+                style="background:var(--bg); border:1px solid var(--border); color:var(--text); line-height:1.5"
+                :style="loading ? 'opacity:.6' : ''"
+            ></textarea>
+            <button type="submit"
+                    :disabled="loading || !input.trim()"
+                    class="w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0 transition-opacity disabled:opacity-30"
+                    style="background:var(--accent)">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+            </button>
+        </form>
+    </footer>
+
+    <!-- shared styles injected inline so Alpine can use them in x-html -->
+    <style>
+        .avatar { width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:.7rem; font-weight:600; color:#fff; flex-shrink:0; }
+        .bubble-bot { background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:1rem; border-top-left-radius:.25rem; padding:.6rem .9rem; font-size:.875rem; max-width:min(36rem, 85vw); }
+        .bubble-user { background:var(--user-bg); color:var(--user-text); border-radius:1rem; border-top-right-radius:.25rem; padding:.6rem .9rem; font-size:.875rem; max-width:min(36rem, 85vw); white-space:pre-wrap; word-break:break-word; }
+        .act-btn { display:flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:6px; color:var(--muted); transition:color .15s, background .15s; }
+        .act-btn:hover { color:var(--text); background:var(--border); }
+        .act-active-green { color: #22c55e !important; }
+        .act-active-red   { color: #f87171 !important; }
+    </style>
+
+    <script>
+    function chat() {
+        return {
+            messages: [],
+            input: '',
+            loading: false,
+            dark: false,
+            promptOpen: false,
+            promptContent: '',
+            promptSource: '',
+
+            init() {
+                const tg = window.Telegram?.WebApp;
+                if (tg) {
+                    tg.ready();
+                    tg.expand();
+                    this.dark = tg.colorScheme === 'dark';
+                } else {
+                    this.dark = localStorage.getItem('omnirag-dark') === '1'
+                        || window.matchMedia('(prefers-color-scheme: dark)').matches;
+                }
+
+                marked.use({
+                    gfm: true,
+                    breaks: true,
+                    highlight(code, lang) {
+                        if (lang && hljs.getLanguage(lang)) return hljs.highlight(code, { language: lang }).value;
+                        return hljs.highlightAuto(code).value;
+                    },
+                });
+            },
+
+            toggleDark() {
+                this.dark = !this.dark;
+                localStorage.setItem('omnirag-dark', this.dark ? '1' : '0');
+            },
+
+            async openPrompt() {
+                this.promptOpen = true;
+                if (this.promptContent) return;
+                try {
+                    const res = await fetch('/api/system-prompt');
+                    const data = await res.json();
+                    this.promptContent = data.content;
+                    this.promptSource = data.source;
+                } catch {
+                    this.promptContent = '_Failed to load system prompt._';
+                }
+            },
+
+            async send() {
+                const q = this.input.trim();
+                if (!q || this.loading) return;
+                this.messages.push({ role: 'user', text: q });
+                this.input = '';
+                this.loading = true;
+                this.scroll();
+                try {
+                    const res = await fetch('/api/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ query: q }),
+                    });
+                    if (!res.ok) throw new Error(res.statusText);
+                    const { response } = await res.json();
+                    this.messages.push({ role: 'bot', text: response, copied: false, liked: null });
+                } catch {
+                    this.messages.push({ role: 'bot', text: '_Connection error. Please try again._', copied: false, liked: null });
+                } finally {
+                    this.loading = false;
+                    this.$nextTick(() => this.scroll());
+                }
+            },
+
+            scroll() {
+                this.$nextTick(() => { this.$refs.feed.scrollTop = this.$refs.feed.scrollHeight; });
+            },
+
+            md(text) { return marked.parse(text); },
+
+            esc(text) {
+                return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            },
+
+            copy(i) {
+                navigator.clipboard.writeText(this.messages[i].text).then(() => {
+                    this.messages[i] = {...this.messages[i], copied: true};
+                    setTimeout(() => {
+                        this.messages[i] = {...this.messages[i], copied: false};
+                    }, 2000);
+                });
+            },
+
+            sendFeedback(i, sentiment) {
+                const m = this.messages[i];
+                // find the preceding user query
+                let query = '';
+                for (let j = i - 1; j >= 0; j--) {
+                    if (this.messages[j].role === 'user') { query = this.messages[j].text; break; }
+                }
+                this.messages[i] = {...m, liked: sentiment};
+                fetch('/api/feedback', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({sentiment, query, response: m.text}),
+                });
+            },
+
+            async retry(i) {
+                if (this.loading) return;
+                // find preceding user query
+                let query = '';
+                for (let j = i - 1; j >= 0; j--) {
+                    if (this.messages[j].role === 'user') { query = this.messages[j].text; break; }
+                }
+                if (!query) return;
+
+                this.loading = true;
+                this.messages[i] = {role: 'bot', text: '', copied: false, liked: null};
+                try {
+                    const res = await fetch('/api/chat', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({query}),
+                    });
+                    const {response} = await res.json();
+                    this.messages[i] = {role: 'bot', text: response, copied: false, liked: null};
+                } catch {
+                    this.messages[i] = {role: 'bot', text: '_Connection error. Please try again._', copied: false, liked: null};
+                } finally {
+                    this.loading = false;
+                    this.$nextTick(() => this.scroll());
+                }
+            },
+        };
+    }
+    </script>
+</body>
+</html>

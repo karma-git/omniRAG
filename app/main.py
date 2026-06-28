@@ -111,7 +111,7 @@ def _load_domain_description(settings: Settings) -> str:
     return settings.rag_domain_description
 
 
-def _build_channel(settings: Settings, on_message):
+def _build_channel(settings: Settings, on_message, domain_description: str = ""):
     if settings.chat_provider == ChatProvider.TELEGRAM:
         from app.channels.telegram import TelegramChannel  # noqa: PLC0415
         return TelegramChannel(on_message=on_message, settings=settings)
@@ -123,6 +123,10 @@ def _build_channel(settings: Settings, on_message):
     if settings.chat_provider == ChatProvider.SLACK:
         from app.channels.slack import SlackChannel  # noqa: PLC0415
         return SlackChannel(on_message=on_message, settings=settings)
+
+    if settings.chat_provider == ChatProvider.WEB:
+        from app.channels.web import WebChannel  # noqa: PLC0415
+        return WebChannel(on_message=on_message, settings=settings, system_prompt=domain_description)
 
     raise ValueError(f"Unknown CHAT_PROVIDER: {settings.chat_provider}")
 
@@ -138,6 +142,8 @@ async def main() -> None:
         _modes = settings.discord_modes
     elif settings.chat_provider == ChatProvider.SLACK:
         _modes = settings.slack_modes
+    elif settings.chat_provider == ChatProvider.WEB:
+        _modes = f"{settings.web_host}:{settings.web_port}"
     else:
         _modes = "N/A"
     logger.info(
@@ -157,7 +163,7 @@ async def main() -> None:
     orchestrator = Orchestrator(rag=rag, provider=provider, settings=settings, domain_description=domain_description)
 
     # Build and start channel (runs until process is killed)
-    channel = _build_channel(settings, on_message=orchestrator)
+    channel = _build_channel(settings, on_message=orchestrator, domain_description=domain_description)
     await channel.start()
 
 
