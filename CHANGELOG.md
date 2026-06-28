@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.2](https://github.com/karma-git/omniRAG/compare/omnirag-v0.1.1...omnirag-v0.1.2) (2026-06-28)
+
+
+### Features
+
+* add normalizer ([c4c1003](https://github.com/karma-git/omniRAG/commit/c4c10034ccf237820bfc0e02a6aa29a95fb2b6c6))
+* add normalizer ([69d7601](https://github.com/karma-git/omniRAG/commit/69d7601ae29ebd040c81617d84483be2ca78b330))
+
 ## [0.1.1](https://github.com/karma-git/omniRAG/compare/omnirag-v0.1.0...omnirag-v0.1.1) (2026-06-28)
 
 
