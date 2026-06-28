@@ -10,13 +10,13 @@ ENV variables (all via config.py):
   S3_BUCKET, S3_INDEX_KEY, S3_META_KEY,
   RAG_MIN_SIMILARITY, RAG_TOP_K
 """
+
 from __future__ import annotations
 
 import json
 import os
 import tempfile
 from dataclasses import dataclass
-from typing import List, Optional
 
 import faiss
 import numpy as np
@@ -28,8 +28,8 @@ from app.core.config import FaissSource, Settings
 
 @dataclass
 class SearchResult:
-    chunks: List[str]
-    scores: List[float]
+    chunks: list[str]
+    scores: list[float]
     is_relevant: bool  # False when best score < RAG_MIN_SIMILARITY
 
 
@@ -42,8 +42,8 @@ class RAGEngine:
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        self._index: Optional[faiss.Index] = None
-        self._chunks: List[str] = []
+        self._index: faiss.Index | None = None
+        self._chunks: list[str] = []
 
         self._embedder: AsyncOpenAI | None = None
 
@@ -53,13 +53,11 @@ class RAGEngine:
         """Load FAISS index and chunk metadata into RAM. Call once at startup."""
         index_path, meta_path = await self._resolve_paths()
         self._index = faiss.read_index(index_path)
-        with open(meta_path, "r", encoding="utf-8") as f:
+        with open(meta_path, encoding="utf-8") as f:
             meta = json.load(f)
         # meta is expected to be a list of strings (raw chunk texts)
         # or a list of dicts with a "text" key
-        self._chunks = [
-            item if isinstance(item, str) else item["text"] for item in meta
-        ]
+        self._chunks = [item if isinstance(item, str) else item["text"] for item in meta]
         logger.info(
             "FAISS index loaded | vectors={} chunks={}",
             self._index.ntotal,
@@ -121,7 +119,7 @@ class RAGEngine:
 
         valid_chunks = []
         valid_scores = []
-        for score, idx in zip(scores, indices):
+        for score, idx in zip(scores, indices, strict=True):
             if idx == -1:
                 continue
             valid_chunks.append(self._chunks[idx])

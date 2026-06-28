@@ -10,10 +10,11 @@ Exposes:
 The same HTML page is used as a Telegram Mini App by pointing
 the bot's menu_button or inline_button at the hosted URL.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 import uvicorn
 from fastapi import FastAPI, Request
@@ -43,13 +44,13 @@ class _FeedbackRequest(BaseModel):
 
 
 class WebChannel(BaseChannel):
-    def __init__(self, on_message: OrchestratorFn, settings: Settings, system_prompt: str = "") -> None:
+    def __init__(
+        self, on_message: OrchestratorFn, settings: Settings, system_prompt: str = ""
+    ) -> None:
         super().__init__(on_message)
         self._settings = settings
         self._system_prompt = system_prompt
-        self._system_prompt_source = (
-            settings.system_prompt_path or "RAG_DOMAIN_DESCRIPTION env var"
-        )
+        self._system_prompt_source = settings.system_prompt_path or "RAG_DOMAIN_DESCRIPTION env var"
         self._app = self._build_app()
 
     def _build_app(self) -> FastAPI:
@@ -80,7 +81,9 @@ class WebChannel(BaseChannel):
         async def feedback(body: _FeedbackRequest):
             logger.info(
                 "Feedback | sentiment={} query={:.80} response={:.80}",
-                body.sentiment, body.query, body.response,
+                body.sentiment,
+                body.query,
+                body.response,
             )
             return {"ok": True}
 
@@ -100,7 +103,7 @@ class WebChannel(BaseChannel):
         self,
         target_id: str,
         text: str,
-        thread_id: Optional[str] = None,
+        thread_id: str | None = None,
     ) -> None:
         # HTTP is request-response; push is not applicable for this channel.
         pass

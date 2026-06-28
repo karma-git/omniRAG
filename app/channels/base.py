@@ -7,12 +7,12 @@ To add a new platform (e.g. Discord):
   3. Implement start() and send_message()
   4. Register the class in app/main.py channel factory
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
-from typing import Callable, Coroutine, Optional
-
 
 # Signature of the coroutine the orchestrator injects into each channel.
 # channel receives a query string, channel returns a response string.
@@ -22,12 +22,13 @@ OrchestratorFn = Callable[[str], Coroutine[None, None, str]]
 @dataclass
 class IncomingMessage:
     """Unified representation of an incoming user message."""
+
     text: str
     user_id: str
     chat_id: str
-    message_id: Optional[str] = None
-    thread_id: Optional[str] = None
-    username: Optional[str] = None
+    message_id: str | None = None
+    thread_id: str | None = None
+    username: str | None = None
 
 
 class BaseChannel(ABC):
@@ -56,6 +57,6 @@ class BaseChannel(ABC):
         self,
         target_id: str,
         text: str,
-        thread_id: Optional[str] = None,
+        thread_id: str | None = None,
     ) -> None:
         """Send a response back to the user/group."""

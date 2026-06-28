@@ -4,44 +4,44 @@ Central configuration via pydantic-settings.
 All values come from environment variables or a .env file.
 The app crashes on startup with a clear error if required vars are missing.
 """
+
 from __future__ import annotations
 
-from enum import Enum
-from typing import List, Literal, Optional, Set
+from enum import StrEnum
 
-from pydantic import field_validator, model_validator
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class ChatProvider(str, Enum):
+class ChatProvider(StrEnum):
     TELEGRAM = "telegram"
     DISCORD = "discord"  # reserved for Phase 2
     SLACK = "slack"
     WEB = "web"
 
 
-class LLMProvider(str, Enum):
+class LLMProvider(StrEnum):
     OPENAI = "openai"
     ANTHROPIC = "anthropic"  # reserved for Phase 2
 
 
-class FaissSource(str, Enum):
+class FaissSource(StrEnum):
     LOCAL = "local"
     S3 = "s3"
 
 
-class TelegramMode(str, Enum):
+class TelegramMode(StrEnum):
     DM = "dm"
     PRIVATE_GROUP = "private_group"
     PUBLIC_GROUP = "public_group"
 
 
-class DiscordMode(str, Enum):
+class DiscordMode(StrEnum):
     DM = "dm"
     SERVER = "server"
 
 
-class SlackMode(str, Enum):
+class SlackMode(StrEnum):
     DM = "dm"
     CHANNEL = "channel"
 
@@ -59,18 +59,18 @@ class Settings(BaseSettings):
     llm_provider: LLMProvider = LLMProvider.OPENAI
 
     # ── OpenAI ────────────────────────────────────────────────────────────────
-    openai_api_key: Optional[str] = None
+    openai_api_key: str | None = None
     openai_model: str = "gpt-4o"
     openai_embedding_model: str = "text-embedding-3-small"
     openai_max_tokens: int = 1024
     openai_temperature: float = 0.2
 
     # ── Anthropic (Phase 2) ───────────────────────────────────────────────────
-    anthropic_api_key: Optional[str] = None
+    anthropic_api_key: str | None = None
     anthropic_model: str = "claude-sonnet-4-6"
 
     # ── Telegram ──────────────────────────────────────────────────────────────
-    telegram_bot_token: Optional[str] = None
+    telegram_bot_token: str | None = None
 
     # Comma-separated list of TelegramMode values
     telegram_enabled_modes: str = "dm,private_group"
@@ -81,7 +81,7 @@ class Settings(BaseSettings):
     telegram_require_mention: bool = True
 
     # ── Discord ───────────────────────────────────────────────────────────────
-    discord_bot_token: Optional[str] = None
+    discord_bot_token: str | None = None
 
     # Comma-separated list of DiscordMode values
     discord_enabled_modes: str = "dm,server"
@@ -92,8 +92,8 @@ class Settings(BaseSettings):
     discord_require_mention: bool = True
 
     # ── Slack ─────────────────────────────────────────────────────────────────
-    slack_bot_token: Optional[str] = None   # xoxb-...
-    slack_app_token: Optional[str] = None   # xapp-... (Socket Mode)
+    slack_bot_token: str | None = None  # xoxb-...
+    slack_app_token: str | None = None  # xapp-... (Socket Mode)
 
     # Comma-separated list of SlackMode values
     slack_enabled_modes: str = "dm,channel"
@@ -112,11 +112,11 @@ class Settings(BaseSettings):
     faiss_index_path: str = "./data/faiss.index"
     faiss_meta_path: str = "./data/chunks_meta.json"
 
-    s3_bucket: Optional[str] = None
+    s3_bucket: str | None = None
     s3_index_key: str = "faiss/faiss.index"
     s3_meta_key: str = "faiss/chunks_meta.json"
-    aws_access_key_id: Optional[str] = None
-    aws_secret_access_key: Optional[str] = None
+    aws_access_key_id: str | None = None
+    aws_secret_access_key: str | None = None
     aws_region: str = "us-east-1"
 
     rag_min_similarity: float = 0.30
@@ -125,12 +125,12 @@ class Settings(BaseSettings):
 
     # Optional path to a markdown file with custom bot instructions.
     # If the file exists, its content replaces rag_domain_description in the system prompt.
-    system_prompt_path: Optional[str] = "./user/system-prompt.md"
+    system_prompt_path: str | None = "./user/system-prompt.md"
 
     # ── Derived / cached properties ───────────────────────────────────────────
     @property
-    def telegram_modes(self) -> Set[TelegramMode]:
-        modes: Set[TelegramMode] = set()
+    def telegram_modes(self) -> set[TelegramMode]:
+        modes: set[TelegramMode] = set()
         for raw in self.telegram_enabled_modes.split(","):
             raw = raw.strip()
             if raw:
@@ -138,8 +138,8 @@ class Settings(BaseSettings):
         return modes
 
     @property
-    def telegram_allowed_ids(self) -> Set[int]:
-        ids: Set[int] = set()
+    def telegram_allowed_ids(self) -> set[int]:
+        ids: set[int] = set()
         for raw in self.telegram_allowed_group_ids.split(","):
             raw = raw.strip()
             if raw:
@@ -147,8 +147,8 @@ class Settings(BaseSettings):
         return ids
 
     @property
-    def discord_modes(self) -> Set[DiscordMode]:
-        modes: Set[DiscordMode] = set()
+    def discord_modes(self) -> set[DiscordMode]:
+        modes: set[DiscordMode] = set()
         for raw in self.discord_enabled_modes.split(","):
             raw = raw.strip()
             if raw:
@@ -156,8 +156,8 @@ class Settings(BaseSettings):
         return modes
 
     @property
-    def discord_allowed_ids(self) -> Set[str]:
-        ids: Set[str] = set()
+    def discord_allowed_ids(self) -> set[str]:
+        ids: set[str] = set()
         for raw in self.discord_allowed_channel_ids.split(","):
             raw = raw.strip()
             if raw:
@@ -165,8 +165,8 @@ class Settings(BaseSettings):
         return ids
 
     @property
-    def slack_modes(self) -> Set[SlackMode]:
-        modes: Set[SlackMode] = set()
+    def slack_modes(self) -> set[SlackMode]:
+        modes: set[SlackMode] = set()
         for raw in self.slack_enabled_modes.split(","):
             raw = raw.strip()
             if raw:
@@ -174,8 +174,8 @@ class Settings(BaseSettings):
         return modes
 
     @property
-    def slack_allowed_ids(self) -> Set[str]:
-        ids: Set[str] = set()
+    def slack_allowed_ids(self) -> set[str]:
+        ids: set[str] = set()
         for raw in self.slack_allowed_channel_ids.split(","):
             raw = raw.strip()
             if raw:
@@ -184,7 +184,7 @@ class Settings(BaseSettings):
 
     # ── Startup validation ────────────────────────────────────────────────────
     @model_validator(mode="after")
-    def _validate_providers(self) -> "Settings":
+    def _validate_providers(self) -> Settings:
         if self.llm_provider == LLMProvider.OPENAI and not self.openai_api_key:
             raise ValueError("LLM_PROVIDER=openai but OPENAI_API_KEY is not set")
         if self.llm_provider == LLMProvider.ANTHROPIC and not self.anthropic_api_key:
@@ -198,15 +198,12 @@ class Settings(BaseSettings):
         if self.chat_provider == ChatProvider.SLACK and not self.slack_app_token:
             raise ValueError("CHAT_PROVIDER=slack but SLACK_APP_TOKEN is not set")
         # WEB provider needs no token
-        if (
-            self.faiss_source == FaissSource.S3
-            and not self.s3_bucket
-        ):
+        if self.faiss_source == FaissSource.S3 and not self.s3_bucket:
             raise ValueError("FAISS_SOURCE=s3 but S3_BUCKET is not set")
         return self
 
 
-_settings: Optional[Settings] = None
+_settings: Settings | None = None
 
 
 def get_settings() -> Settings:

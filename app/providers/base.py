@@ -7,10 +7,10 @@ To add a new provider (e.g. Anthropic):
   3. Implement generate_response()
   4. Register the class in app/main.py provider factory
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import List
 
 
 class BaseLLMProvider(ABC):
@@ -26,7 +26,7 @@ class BaseLLMProvider(ABC):
     async def generate_response(
         self,
         system_prompt: str,
-        context_chunks: List[str],
+        context_chunks: list[str],
         user_query: str,
     ) -> str:
         """
