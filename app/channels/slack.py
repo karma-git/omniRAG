@@ -22,10 +22,10 @@ Optional ENV:
   SLACK_ALLOWED_CHANNEL_IDS   (comma-separated, e.g. C01234,C56789)
   SLACK_REQUIRE_MENTION       (default: true)
 """
+
 from __future__ import annotations
 
 import time
-from typing import Optional
 
 from loguru import logger
 from slack_bolt.adapter.socket_mode.async_handler import AsyncSocketModeHandler
@@ -55,7 +55,7 @@ class SlackChannel(BaseChannel):
             app=self._app,
             app_token=settings.slack_app_token,
         )
-        self._bot_user_id: Optional[str] = None
+        self._bot_user_id: str | None = None
         self._register_handlers()
 
     # ── Handler registration ──────────────────────────────────────────────────
@@ -102,7 +102,9 @@ class SlackChannel(BaseChannel):
 
         logger.info(
             "Slack mention | channel={} user={} preview='{}'",
-            channel_id, user_id, text[:60],
+            channel_id,
+            user_id,
+            text[:60],
         )
         await self._process_and_reply(text, channel_id, user_id, thread_ts=thread_ts)
 
@@ -145,7 +147,10 @@ class SlackChannel(BaseChannel):
 
         logger.info(
             "Slack message | channel={} type={} user={} preview='{}'",
-            channel_id, channel_type, user_id, text[:60],
+            channel_id,
+            channel_type,
+            user_id,
+            text[:60],
         )
         await self._process_and_reply(text, channel_id, user_id, thread_ts=thread_ts)
 
@@ -156,7 +161,7 @@ class SlackChannel(BaseChannel):
         text: str,
         channel_id: str,
         user_id: str,
-        thread_ts: Optional[str] = None,
+        thread_ts: str | None = None,
     ) -> None:
         t0 = time.monotonic()
         try:
@@ -168,7 +173,9 @@ class SlackChannel(BaseChannel):
         elapsed = time.monotonic() - t0
         logger.info(
             "Slack response sent | channel={} user={} elapsed={:.2f}s",
-            channel_id, user_id, elapsed,
+            channel_id,
+            user_id,
+            elapsed,
         )
 
         await self.send_message(target_id=channel_id, text=response, thread_id=thread_ts)
@@ -190,7 +197,7 @@ class SlackChannel(BaseChannel):
         self,
         target_id: str,
         text: str,
-        thread_id: Optional[str] = None,
+        thread_id: str | None = None,
     ) -> None:
         for chunk in _split_text(text, _SLACK_MAX_LEN):
             kwargs: dict = {"channel": target_id, "text": chunk}
@@ -201,7 +208,8 @@ class SlackChannel(BaseChannel):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _strip_mention(text: str, bot_user_id: Optional[str]) -> str:
+
+def _strip_mention(text: str, bot_user_id: str | None) -> str:
     """Remove <@BOT_USER_ID> mention from message text."""
     if bot_user_id:
         text = text.replace(f"<@{bot_user_id}>", "")

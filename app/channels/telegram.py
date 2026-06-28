@@ -17,12 +17,12 @@ Required ENV:
   TELEGRAM_ALLOWED_GROUP_IDS (comma-separated negative ints, required for private_group)
   TELEGRAM_REQUIRE_MENTION (default: true)
 """
+
 from __future__ import annotations
 
-import time
-from typing import Optional
-
 import html
+import re
+import time
 
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.client.default import DefaultBotProperties
@@ -57,7 +57,7 @@ class TelegramChannel(BaseChannel):
         self._dp = Dispatcher()
         self._router = Router(name="omnirag")
         self._dp.include_router(self._router)
-        self._bot_username: Optional[str] = None
+        self._bot_username: str | None = None
         self._register_handlers()
 
     # ── Handler registration ──────────────────────────────────────────────────
@@ -141,20 +141,25 @@ class TelegramChannel(BaseChannel):
 
         logger.info(
             "Telegram message | chat={} user={} (@{}) preview='{}'",
-            chat_id, user_id, username, query[:60],
+            chat_id,
+            user_id,
+            username,
+            query[:60],
         )
 
         t0 = time.monotonic()
         try:
             response = await self._on_message(query)
-        except Exception as exc:
+        except Exception:
             logger.exception("Orchestrator error | chat={} user={}", chat_id, user_id)
             response = "An internal error occurred. Please try again later."
 
         elapsed = time.monotonic() - t0
         logger.info(
             "Telegram response sent | chat={} user={} elapsed={:.2f}s",
-            chat_id, user_id, elapsed,
+            chat_id,
+            user_id,
+            elapsed,
         )
 
         await self.send_message(
@@ -179,27 +184,72 @@ class TelegramChannel(BaseChannel):
         self,
         target_id: str,
         text: str,
-        thread_id: Optional[str] = None,
+        thread_id: str | None = None,
     ) -> None:
         kwargs: dict = {"chat_id": int(target_id)}
         if thread_id:
             kwargs["message_thread_id"] = int(thread_id)
 
-        safe = html.escape(text)
-        for chunk in _split_text(safe, _TELEGRAM_MAX_LEN):
+        formatted = _md_to_tg_html(text)
+        for chunk in _split_text(formatted, _TELEGRAM_MAX_LEN):
             await self._bot.send_message(**kwargs, text=chunk)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def _always_true(_: Message) -> bool:
     return True
 
 
-def _strip_mention(text: str, bot_username: Optional[str]) -> str:
+def _strip_mention(text: str, bot_username: str | None) -> str:
     if bot_username:
         text = text.replace(f"@{bot_username}", "").replace(f"@{bot_username.lower()}", "")
     return text.strip()
+
+
+_CODE_BLOCK = re.compile(r"```(\w*)\n?(.*?)```", re.DOTALL)
+_BOLD = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
+_ITALIC = re.compile(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)")
+_INLINE_CODE = re.compile(r"`([^`\n]+)`")
+_HEADER = re.compile(r"^#{1,6}\s+(.+)$", re.MULTILINE)
+_LIST_ITEM = re.compile(r"^[ \t]*[-*]\s+(.+)$", re.MULTILINE)
+
+
+def _md_to_tg_html(text: str) -> str:
+    """Convert markdown from LLM output to Telegram-compatible HTML."""
+    parts: list[str] = []
+    cursor = 0
+    for m in _CODE_BLOCK.finditer(text):
+        parts.append(_inline_to_html(text[cursor : m.start()]))
+        lang = m.group(1)
+        code = html.escape(m.group(2).strip())
+        cls = f' class="language-{lang}"' if lang else ""
+        parts.append(f"<pre><code{cls}>{code}</code></pre>")
+        cursor = m.end()
+    parts.append(_inline_to_html(text[cursor:]))
+    return "".join(parts)
+
+
+def _inline_to_html(text: str) -> str:
+    # Stash inline code so its content isn't touched by later regexes
+    stash: list[str] = []
+
+    def _stash(m: re.Match) -> str:
+        stash.append(f"<code>{html.escape(m.group(1))}</code>")
+        return f"\x00{len(stash) - 1}\x00"
+
+    text = _INLINE_CODE.sub(_stash, text)
+
+    text = html.escape(text)
+    text = _BOLD.sub(r"<b>\1</b>", text)
+    text = _ITALIC.sub(r"<i>\1</i>", text)
+    text = _HEADER.sub(r"<b>\1</b>", text)
+    text = _LIST_ITEM.sub(r"• \1", text)
+
+    for i, ph in enumerate(stash):
+        text = text.replace(f"\x00{i}\x00", ph)
+    return text
 
 
 def _split_text(text: str, max_len: int) -> list[str]:

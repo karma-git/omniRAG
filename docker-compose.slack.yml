@@ -16,4 +16,6 @@ services:
       - .env
     volumes:
       - ./data:/app/data             # writes faiss.index + chunks_meta.json here
-      - ./docs:/docs:ro              # put your .md / .txt / .pdf files here
+      - ./docs:/app/docs:ro          # put your .md / .txt / .pdf files here
+    profiles:
+      - tools

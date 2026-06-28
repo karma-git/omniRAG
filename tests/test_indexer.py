@@ -1,4 +1,5 @@
 """Tests for scripts/index_documents.py — chunking logic."""
+
 import sys
 from pathlib import Path
 

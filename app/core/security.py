@@ -9,31 +9,41 @@ Two-stage protection:
 The system prompt sent to the LLM also contains explicit instructions to refuse
 off-topic questions and never reveal or override its own prompt.
 """
+
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Optional
-
 
 # ── Injection patterns ────────────────────────────────────────────────────────
 # Ordered from most obvious to subtler; compiled once at import time.
 _INJECTION_PATTERNS: list[re.Pattern] = [
     # Classic override phrases
-    re.compile(r"ignore\s+(all\s+)?(previous|prior|above|earlier)\s+(instructions?|prompts?|rules?)", re.I),
-    re.compile(r"disregard\s+(all\s+)?(previous|prior|above|earlier)\s+(instructions?|prompts?|rules?)", re.I),
-    re.compile(r"forget\s+(all\s+)?(previous|prior|above|earlier)\s+(instructions?|prompts?|rules?)", re.I),
+    re.compile(
+        r"ignore\s+(all\s+)?(previous|prior|above|earlier)\s+(instructions?|prompts?|rules?)", re.I
+    ),
+    re.compile(
+        r"disregard\s+(all\s+)?(previous|prior|above|earlier)\s+(instructions?|prompts?|rules?)",
+        re.I,
+    ),
+    re.compile(
+        r"forget\s+(all\s+)?(previous|prior|above|earlier)\s+(instructions?|prompts?|rules?)", re.I
+    ),
     # Role hijacking
     re.compile(r"\byou\s+are\s+(now|a|an)\b.{0,60}(assistant|ai|bot|gpt|model|llm)\b", re.I | re.S),
     re.compile(r"\bact\s+as\b.{0,40}(assistant|ai|bot|gpt|model|llm|expert|hacker)", re.I),
     re.compile(r"\bpretend\s+(to\s+be|you\s+are)\b", re.I),
-    re.compile(r"\bdo\s+anything\s+now\b", re.I),          # DAN
+    re.compile(r"\bdo\s+anything\s+now\b", re.I),  # DAN
     re.compile(r"\bdan\s*mode\b", re.I),
     re.compile(r"\bjailbreak\b", re.I),
     # Prompt exfiltration
-    re.compile(r"(reveal|show|print|repeat|output|tell\s+me)\s+(your|the)\s+(system\s+)?prompt", re.I),
+    re.compile(
+        r"(reveal|show|print|repeat|output|tell\s+me)\s+(your|the)\s+(system\s+)?prompt", re.I
+    ),
     re.compile(r"what\s+(are|is)\s+your\s+(instructions?|rules?|directives?)", re.I),
-    re.compile(r"(above|previous)\s+text\s+(is|are|was)\s+(your|the)\s+(instructions?|prompt)", re.I),
+    re.compile(
+        r"(above|previous)\s+text\s+(is|are|was)\s+(your|the)\s+(instructions?|prompt)", re.I
+    ),
     # Instruction injection via markup
     re.compile(r"<\s*/?system\s*>", re.I),
     re.compile(r"\[\s*system\s*\]", re.I),
@@ -50,7 +60,7 @@ MAX_INPUT_LENGTH = 2000
 @dataclass
 class SecurityCheckResult:
     is_safe: bool
-    rejection_reason: Optional[str] = None
+    rejection_reason: str | None = None
 
 
 def check_input(text: str) -> SecurityCheckResult:

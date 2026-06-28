@@ -1,5 +1,8 @@
 services:
-  omnirag:
+
+  # ── Telegram / Slack / Discord bot ────────────────────────────────────────
+  # Set CHAT_PROVIDER in .env to: telegram | slack | discord
+  omnirag-bot:
     image: omnirag:local
     build:
       context: .
@@ -7,28 +10,51 @@ services:
     env_file:
       - .env
     volumes:
-      # FAISS index lives here — built with scripts/index_documents.py
       - ./data:/app/data:ro
+      - ./user:/app/user:ro
     restart: unless-stopped
-    # Telegram long-polling needs outbound HTTPS only, no inbound ports needed
-    network_mode: bridge
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
 
-  # Optional: run the indexer as a one-off job
-  # docker compose run --rm indexer --docs-dir /docs --out-dir /app/data
+  # ── Web UI + REST API ──────────────────────────────────────────────────────
+  # Browser, Telegram Mini App, Tauri/Electron desktop, React Native — all
+  # consume GET / (Jinja2 HTML) or POST /api/chat (JSON).
+  omnirag-web:
+    image: omnirag:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      CHAT_PROVIDER: web
+    ports:
+      - "${WEB_PORT:-8000}:8000"
+    volumes:
+      - ./data:/app/data:ro
+      - ./user:/app/user:ro
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ── Indexer (one-off job) ──────────────────────────────────────────────────
+  # docker compose run --rm indexer
   indexer:
     image: omnirag:local
     build:
       context: .
       dockerfile: Dockerfile
     entrypoint: ["python", "scripts/index_documents.py"]
+    env_file:
+      - .env
     volumes:
       - ./data:/app/data
-      - ./docs:/docs:ro
-      - ./scripts:/app/scripts:ro
+      - ./docs:/app/docs:ro
     profiles:
       - tools

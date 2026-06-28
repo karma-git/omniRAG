@@ -1,4 +1,5 @@
 """Tests for config.py — validation and derived properties."""
+
 import pytest
 from pydantic import ValidationError
 

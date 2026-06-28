@@ -5,9 +5,8 @@ Required ENV:
   ANTHROPIC_API_KEY
   ANTHROPIC_MODEL  (default: claude-sonnet-4-6)
 """
-from __future__ import annotations
 
-from typing import List
+from __future__ import annotations
 
 from loguru import logger
 
@@ -27,12 +26,13 @@ class AnthropicProvider(BaseLLMProvider):
         self._settings = settings
         # Lazy import so the package is not required when using OpenAI
         import anthropic  # noqa: PLC0415
+
         self._client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
     async def generate_response(
         self,
         system_prompt: str,
-        context_chunks: List[str],
+        context_chunks: list[str],
         user_query: str,
     ) -> str:
         logger.debug(
