@@ -1,0 +1,139 @@
+---
+title: Vagrant - DevOps Environment
+description: Собрал Linux для людей
+slug: vagrant-karma-linux
+authors: [a.horbach]
+tags: [vagrant, packer, ansible, linux, devops]
+hide_table_of_contents: false
+---
+# Vagrant - DevOps Environment
+
+## Inspiration
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+Буквально недавно [писал](/blog/selfmade-vagrant-box) про сборку `Vagrant`-а, **доделалъ** :tada:, в двух версиях:
+
+- в серверной работаем через ssh
+- и gui, установлены разные desktop приложения :computer:
+
+[![asciicast](https://asciinema.org/a/58jLHlUsCZA63uGjIClQcX5r0.svg)](https://asciinema.org/a/58jLHlUsCZA63uGjIClQcX5r0)
+
+:::info "Этапы"
+
+- [Сборка Packer-ом](https://github.com/karma-git/playground/tree/master/environment/vagrant/build)
+- [Ansible](https://github.com/karma-git/playground/tree/master/ansible)
+- [Vagrant Cloud](https://app.vagrantup.com/karma-kit)
+- [Vagrantfile examples](https://github.com/karma-git/playground/tree/master/environment/vagrant/examples)
+
+:::
+
+Или схематично:
+
+```mermaid
+sequenceDiagram
+  participant Packer
+  participant Vagrant
+  participant Ansible
+  Packer->>Vagrant: Launch tmp VM
+  Note right of Vagrant: at low level Vagrant uses Virtualbox API
+  Vagrant->>Ansible: Configure tmp VM
+  Ansible-->>Vagrant: Done!
+  Vagrant-->>Packer: Done!
+  note over Packer: Creates Vagrant box from current VM state.
+  note over Packer: Releases the Vagrant box on Vagrant Cloud.
+```
+
+## Установка на Windows
+
+Проверьте ресурсы вашей host OS:
+
+CPU
+```powershell
+WMIC CPU Get DeviceID,NumberOfCores,NumberOfLogicalProcessors
+```
+Версию OS и общий объем RAM:
+```powershell
+systeminfo |findstr /c:"OS Name" /c:"Total Physical Memory"
+```
+![img](./vagrant-windows.png)
+
+:::tip "Рекомедованные ресурсы"
+- 2 vpcu
+- 4Gi RAM
+:::
+
+Вам потребуется:
+- [VirtualBox](https://www.virtualbox.org/wiki/Downloads)
+- [Vagrant](https://www.vagrantup.com/docs/installation)
+
+## VirtualBox Guest Additions
+
+> [6.4. Installing the VirtualBox Guest Additions](https://docs.oracle.com/cd/E36500_01/E36502/html/qs-guest-additions.html)
+
+### vbguest vagrant plugin
+
+:::danger
+У меня сработало лишь один раз :skull:
+:::
+
+```shell
+vagrant plugin uninstall vagrant-vbguest
+vagrant destroy -f
+vagrant up
+vagrant plugin install vagrant-vbguest
+vagrant vbguest --do install
+```
+
+### ansible galaxy
+
+Используйте мой [пример](https://github.com/karma-git/playground/tree/master/environment/vagrant/examples/karma-kit-devops-gui) - Guest Additions установит ansible роль.
+
+:::caution
+
+Гарантию, что у вас все сработает дать невозможно, но скорее всего понадобятся минимальные телодвижения.
+
+:::
+
+### Секретный вариант
+
+Всегда можно погуглить / посмотреть ютуб на тему как сделать `Virtualbox` на весь экран :wink:
+
+Удачи и да прибудет с вами сила!
+
+:::tip
+
+Если не смотрели, исправьтесь:
+
+<div className="video-wrapper">
+  <iframe height="540" frameBorder="0" allowFullScreen width="50%" src="https://www.youtube.com/embed/n1F_MfLRlX0"></iframe>
+</div>
+
+:::
+
+<details>
+  <summary>Toggle me!</summary>
+
+    🦖 🦕
+
+</details>
+
+## Links
+
+:::info Links
+
+Ссылки / Статьи которые помогли реализовать идею:
+
+<details>
+<summary>Links</summary>
+
+- [Vagrant - Boxes](https://www.vagrantup.com/docs/boxes)
+- [Packer - Vagrant](https://www.packer.io/plugins/post-processors/vagrant/vagrant-cloud)
+- [A custom Vagrant box with Packer](https://dev.to/mattdark/a-custom-vagrant-box-with-packer-13ke)
+
+</details>
+
+:::
+
+<!--truncate-->

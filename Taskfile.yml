@@ -1,0 +1,43 @@
+version: '3'
+
+vars:
+  IMAGE: karmawow/omnirag
+
+tasks:
+  release:
+    desc: "Bump version → build → push to DockerHub  |  task release -- 0.1.0"
+    vars:
+      VERSION: '{{.CLI_ARGS}}'
+    requires:
+      vars: [VERSION]
+    cmds:
+      - task: bump
+        vars: { VERSION: '{{.VERSION}}' }
+      - task: docker-build
+        vars: { VERSION: '{{.VERSION}}' }
+      - task: docker-push
+        vars: { VERSION: '{{.VERSION}}' }
+
+  bump:
+    desc: "Update version in pyproject.toml and regenerate lockfile"
+    requires:
+      vars: [VERSION]
+    cmds:
+      - sed -i '' 's/^version = ".*"/version = "{{.VERSION}}"/' pyproject.toml
+      - uv lock
+      - echo "→ pyproject.toml bumped to {{.VERSION}}"
+
+  docker-build:
+    desc: "Build image with semver + latest tags"
+    requires:
+      vars: [VERSION]
+    cmds:
+      - docker build -t {{.IMAGE}}:{{.VERSION}} -t {{.IMAGE}}:latest .
+
+  docker-push:
+    desc: "Push semver + latest tags to DockerHub"
+    requires:
+      vars: [VERSION]
+    cmds:
+      - docker push {{.IMAGE}}:{{.VERSION}}
+      - docker push {{.IMAGE}}:latest

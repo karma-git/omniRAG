@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}   # owner/repo → ghcr.io/owner/repo
+
+jobs:
+  # ── 1. Lint ──────────────────────────────────────────────────────────────────
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install dev dependencies
+        run: uv sync --frozen --only-group dev
+
+      - name: Check formatting
+        run: uv run ruff format --check .
+
+      - name: Check lint rules
+        run: uv run ruff check .
+
+  # ── 2. Tests ─────────────────────────────────────────────────────────────────
+  test:
+    name: Tests (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Run tests
+        run: uv run pytest -v --tb=short
+
+  # # ── 3. Docker build + push to GHCR ───────────────────────────────────────────
+  # docker:
+  #   name: Docker build & push
+  #   runs-on: ubuntu-latest
+  #   # Only push on pushes to main/master; PRs only build (no push)
+  #   permissions:
+  #     contents: read
+  #     packages: write
+
+  #   steps:
+  #     - uses: actions/checkout@v4
+
+  #     - name: Set up Docker Buildx
+  #       uses: docker/setup-buildx-action@v3
+
+  #     - name: Log in to GHCR
+  #       if: github.event_name == 'push'
+  #       uses: docker/login-action@v3
+  #       with:
+  #         registry: ${{ env.REGISTRY }}
+  #         username: ${{ github.actor }}
+  #         password: ${{ secrets.GITHUB_TOKEN }}
+
+  #     - name: Extract metadata (tags & labels)
+  #       id: meta
+  #       uses: docker/metadata-action@v5
+  #       with:
+  #         images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+  #         tags: |
+  #           # Branch name (e.g. main → :main)
+  #           type=ref,event=branch
+  #           # Short SHA (e.g. :sha-abc1234)
+  #           type=sha,prefix=sha-,format=short
+  #           # :latest on default branch pushes
+  #           type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+
+  #     - name: Build and push
+  #       uses: docker/build-push-action@v5
+  #       with:
+  #         context: .
+  #         file: Dockerfile
+  #         push: ${{ github.event_name == 'push' }}
+  #         tags: ${{ steps.meta.outputs.tags }}
+  #         labels: ${{ steps.meta.outputs.labels }}
+  #         # Layer cache via GHCR
+  #         cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
+  #         cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+  #         platforms: linux/amd64,linux/arm64

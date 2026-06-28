@@ -1,0 +1,29 @@
+---
+id: 12-update-deploy
+title: "12 - Update an Existing Deployment in Kubernetes"
+tags:
+  - kodekloud-engineer-kubernetes
+---
+
+## Task
+
+There is an application deployed on Kubernetes cluster. Recently, the Nautilus application development team developed a new version of the application that needs to be deployed now. As per new updates some new changes need to be made in this existing setup. So update the deployment and service as per details mentioned below:
+
+
+We already have a deployment named nginx-deployment and service named nginx-service. Some changes need to be made in this deployment and service, make sure not to delete the deployment and service.
+
+1.) Change the service nodeport from 30008 to 32165
+
+2.) Change the replicas count from 1 to 5
+
+3.) Change the image from nginx:1.17 to nginx:latest
+
+Note: The kubectl utility on jump_host has been configured to work with the kubernetes cluster.
+
+
+## Solution
+
+```shell
+k patch deploy  nginx-deployment --type merge -p '{"spec":{"replicas":5,"template":{"spec":{"containers":[{"name": "nginx-container", "image":"nginx:latest"}]}}}}'
+k patch svc  nginx-service --type merge -p '{"spec":{"ports":[{"nodePort":32165,"port":80,"protocol":"TCP","targetPort":80}]}}'
+```
