@@ -17,6 +17,7 @@ class ChatProvider(str, Enum):
     TELEGRAM = "telegram"
     DISCORD = "discord"  # reserved for Phase 2
     SLACK = "slack"
+    WEB = "web"
 
 
 class LLMProvider(str, Enum):
@@ -101,6 +102,10 @@ class Settings(BaseSettings):
     slack_allowed_channel_ids: str = ""
 
     slack_require_mention: bool = True
+
+    # ── Web ───────────────────────────────────────────────────────────────────
+    web_host: str = "0.0.0.0"
+    web_port: int = 8000
 
     # ── RAG / FAISS ───────────────────────────────────────────────────────────
     faiss_source: FaissSource = FaissSource.LOCAL
@@ -192,6 +197,7 @@ class Settings(BaseSettings):
             raise ValueError("CHAT_PROVIDER=slack but SLACK_BOT_TOKEN is not set")
         if self.chat_provider == ChatProvider.SLACK and not self.slack_app_token:
             raise ValueError("CHAT_PROVIDER=slack but SLACK_APP_TOKEN is not set")
+        # WEB provider needs no token
         if (
             self.faiss_source == FaissSource.S3
             and not self.s3_bucket

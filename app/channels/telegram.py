@@ -23,6 +23,7 @@ import time
 from typing import Optional
 
 import html
+import re
 
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.client.default import DefaultBotProperties
@@ -185,8 +186,8 @@ class TelegramChannel(BaseChannel):
         if thread_id:
             kwargs["message_thread_id"] = int(thread_id)
 
-        safe = html.escape(text)
-        for chunk in _split_text(safe, _TELEGRAM_MAX_LEN):
+        formatted = _md_to_tg_html(text)
+        for chunk in _split_text(formatted, _TELEGRAM_MAX_LEN):
             await self._bot.send_message(**kwargs, text=chunk)
 
 
@@ -200,6 +201,48 @@ def _strip_mention(text: str, bot_username: Optional[str]) -> str:
     if bot_username:
         text = text.replace(f"@{bot_username}", "").replace(f"@{bot_username.lower()}", "")
     return text.strip()
+
+
+_CODE_BLOCK = re.compile(r"```(\w*)\n?(.*?)```", re.DOTALL)
+_BOLD       = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
+_ITALIC     = re.compile(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)")
+_INLINE_CODE = re.compile(r"`([^`\n]+)`")
+_HEADER     = re.compile(r"^#{1,6}\s+(.+)$", re.MULTILINE)
+_LIST_ITEM  = re.compile(r"^[ \t]*[-*]\s+(.+)$", re.MULTILINE)
+
+
+def _md_to_tg_html(text: str) -> str:
+    """Convert markdown from LLM output to Telegram-compatible HTML."""
+    parts: list[str] = []
+    cursor = 0
+    for m in _CODE_BLOCK.finditer(text):
+        parts.append(_inline_to_html(text[cursor:m.start()]))
+        lang = m.group(1)
+        code = html.escape(m.group(2).strip())
+        cls = f' class="language-{lang}"' if lang else ""
+        parts.append(f"<pre><code{cls}>{code}</code></pre>")
+        cursor = m.end()
+    parts.append(_inline_to_html(text[cursor:]))
+    return "".join(parts)
+
+
+def _inline_to_html(text: str) -> str:
+    # Stash inline code so its content isn't touched by later regexes
+    stash: list[str] = []
+    def _stash(m: re.Match) -> str:
+        stash.append(f"<code>{html.escape(m.group(1))}</code>")
+        return f"\x00{len(stash)-1}\x00"
+    text = _INLINE_CODE.sub(_stash, text)
+
+    text = html.escape(text)
+    text = _BOLD.sub(r"<b>\1</b>", text)
+    text = _ITALIC.sub(r"<i>\1</i>", text)
+    text = _HEADER.sub(r"<b>\1</b>", text)
+    text = _LIST_ITEM.sub(r"• \1", text)
+
+    for i, ph in enumerate(stash):
+        text = text.replace(f"\x00{i}\x00", ph)
+    return text
 
 
 def _split_text(text: str, max_len: int) -> list[str]:
