@@ -1,6 +1,6 @@
 [project]
 name = "omnirag"
-version = "v0.1.0"
+version = "0.1.0"
 description = "Stateless multi-provider RAG chatbot orchestrator"
 requires-python = ">=3.12"
 dependencies = [
@@ -29,6 +29,8 @@ dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "ruff>=0.4.10",
+    "pre-commit>=3.7",
+    "httpx>=0.27.0",
 ]
 
 [tool.uv]
