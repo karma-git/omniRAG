@@ -11,7 +11,7 @@ services:
   # One-off indexer: docker compose -f docker-compose.slack.yml run --rm indexer
   indexer:
     image: karmawow/omnirag:latest
-    entrypoint: ["python", "scripts/index_documents.py"]
+    entrypoint: ["python", "-m", "scripts.indexer"]
     env_file:
       - .env
     volumes:

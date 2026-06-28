@@ -1,17 +1,10 @@
-"""Tests for scripts/index_documents.py — chunking logic."""
+"""Tests for chunking logic in scripts/indexer/pipeline.py."""
 
-import sys
-from pathlib import Path
-
-# Make scripts/ importable without install
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-
-from index_documents import chunk_text  # noqa: E402
+from scripts.indexer.pipeline import chunk_text
 
 
 def test_short_text_returns_single_chunk() -> None:
-    text = "Hello world"
-    chunks = chunk_text(text, chunk_size=800, overlap=100)
+    chunks = chunk_text("Hello world", chunk_size=800, overlap=100)
     assert chunks == ["Hello world"]
 
 
@@ -33,7 +26,6 @@ def test_overlap_content_shared() -> None:
     text = "abcdefghij" * 40  # 400 chars
     chunks = chunk_text(text, chunk_size=100, overlap=20)
     assert len(chunks) >= 2
-    # At least one char of chunk[0] tail should appear at chunk[1] start
     tail = chunks[0][-20:]
     head = chunks[1][:20]
     assert any(c in head for c in tail)

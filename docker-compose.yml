@@ -50,7 +50,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    entrypoint: ["python", "scripts/index_documents.py"]
+    entrypoint: ["python", "-m", "scripts.indexer"]
     env_file:
       - .env
     volumes:
