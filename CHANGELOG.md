@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/karma-git/omniRAG/compare/omnirag-v0.1.2...omnirag-v0.2.0) (2026-06-29)
+
+
+### Features
+
+* add s3 storage backend ([#6](https://github.com/karma-git/omniRAG/issues/6)) ([0ca0f1e](https://github.com/karma-git/omniRAG/commit/0ca0f1e2a4bf76f9be849293845ffbf2188ecb9f))
+
 ## [0.1.2](https://github.com/karma-git/omniRAG/compare/omnirag-v0.1.1...omnirag-v0.1.2) (2026-06-28)
 
 
