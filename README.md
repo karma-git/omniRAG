@@ -97,6 +97,40 @@ Go to [api.slack.com/apps](https://api.slack.com/apps) and configure:
 
 ---
 
+## S3 storage backend
+
+By default the indexer writes artifacts to `./data/` and pods read them from there.
+For multi-pod deployments (k8s) switch to S3 so all instances share one index.
+
+**Indexer** — write to S3:
+
+```bash
+STORAGE_BACKEND=s3 S3_BUCKET=my-bucket task index
+# or
+docker compose run --rm indexer --storage-backend s3 --s3-bucket my-bucket
+```
+
+**Pods** — read from S3 at startup, restart to pick up a new index:
+
+```env
+FAISS_SOURCE=s3
+S3_BUCKET=my-bucket
+S3_INDEX_KEY=faiss/faiss.index
+S3_META_KEY=faiss/chunks_meta.json
+```
+
+After re-indexing: `kubectl rollout restart deployment/omnirag` (rolling — zero downtime).
+
+Artifacts in S3:
+```
+s3://<bucket>/faiss/
+  faiss.index          ← pods download at startup
+  chunks_meta.json     ← pods download at startup
+  embed_cache.json     ← indexer only (avoids re-embedding unchanged text)
+```
+
+---
+
 ## Configuration reference
 
 | Variable | Default | Description |
@@ -111,9 +145,14 @@ Go to [api.slack.com/apps](https://api.slack.com/apps) and configure:
 | `SLACK_ENABLED_MODES` | `dm,channel` | Comma-separated: `dm`, `channel` |
 | `SLACK_ALLOWED_CHANNEL_IDS` | _(all)_ | Comma-separated channel IDs, empty = all |
 | `SLACK_REQUIRE_MENTION` | `true` | If `true`, bot responds only when @mentioned |
-| `FAISS_SOURCE` | `local` | `local` \| `s3` |
-| `FAISS_INDEX_PATH` | `./data/faiss.index` | |
-| `FAISS_META_PATH` | `./data/chunks_meta.json` | |
+| `FAISS_SOURCE` | `local` | `local` \| `s3` — where pods load the index from |
+| `FAISS_INDEX_PATH` | `./data/faiss.index` | Used when `FAISS_SOURCE=local` |
+| `FAISS_META_PATH` | `./data/chunks_meta.json` | Used when `FAISS_SOURCE=local` |
+| `S3_BUCKET` | — | Required when `FAISS_SOURCE=s3` or `STORAGE_BACKEND=s3` |
+| `S3_INDEX_KEY` | `faiss/faiss.index` | S3 key for the FAISS index |
+| `S3_META_KEY` | `faiss/chunks_meta.json` | S3 key for chunk metadata |
+| `S3_PREFIX` | `faiss` | Key prefix used by the indexer |
+| `STORAGE_BACKEND` | `local` | `local` \| `s3` — where the indexer writes artifacts |
 | `RAG_MIN_SIMILARITY` | `0.30` | Queries below this score are rejected as off-topic |
 | `RAG_TOP_K` | `5` | Number of chunks passed to LLM |
 | `SYSTEM_PROMPT_PATH` | `./user/system-prompt.md` | Custom bot instructions file |
@@ -152,7 +191,13 @@ app/
   main.py             # Orchestrator + factory wiring
 
 scripts/
-  index_documents.py  # docs → chunks → OpenAI embed → faiss.index
+  indexer/
+    __main__.py       # CLI entry: python -m scripts.indexer
+    pipeline.py       # chunk → embed → write via StorageBackend
+    storage.py        # LocalStorage / S3Storage
+    connectors.py     # iter_documents() — FS, PDF
+    embed_cache.py    # sha256 → float32 cache
+    propositions.py   # LLM proposition extraction (optional)
 
 user/
   system-prompt.md    # your bot instructions (not tracked in git)

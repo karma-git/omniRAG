@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+import tempfile
 from pathlib import Path
 
 import faiss
@@ -13,6 +14,7 @@ from app.core.normalizer import normalize
 from scripts.indexer.connectors import iter_documents
 from scripts.indexer.embed_cache import EmbedCache
 from scripts.indexer.propositions import extract_propositions
+from scripts.indexer.storage import StorageBackend
 
 
 def chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
@@ -103,7 +105,7 @@ def _embed_texts(
 
 def build_index(
     docs_dir: Path,
-    out_dir: Path,
+    storage: StorageBackend,
     chunk_size: int,
     overlap: int,
     embedding_model: str,
@@ -112,12 +114,17 @@ def build_index(
     chat_model: str = "gpt-4o-mini",
     use_cache: bool = True,
 ) -> None:
-    out_dir.mkdir(parents=True, exist_ok=True)
     client = OpenAI()
 
     cache: EmbedCache | None = None
+    _tmp_dir: tempfile.TemporaryDirectory | None = None
     if use_cache:
-        cache = EmbedCache(out_dir / "embed_cache.json")
+        _tmp_dir = tempfile.TemporaryDirectory(prefix="rag_cache_")
+        tmp_cache_path = Path(_tmp_dir.name) / "embed_cache.json"
+        cached_data = storage.read("embed_cache.json")
+        if cached_data:
+            tmp_cache_path.write_bytes(cached_data)
+        cache = EmbedCache(tmp_cache_path)
 
     all_chunks: list[dict] = []
     texts_to_embed: list[str] = []
@@ -162,6 +169,10 @@ def build_index(
 
     if cache:
         cache.save()
+        cache_data = Path(cache._path).read_bytes()
+        storage.write("embed_cache.json", cache_data)
+        if _tmp_dir:
+            _tmp_dir.cleanup()
 
     embeddings = np.array(all_vecs, dtype=np.float32)
     norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
@@ -173,16 +184,17 @@ def build_index(
     index = faiss.IndexFlatIP(dim)
     index.add(embeddings)
 
-    index_path = out_dir / "faiss.index"
-    meta_path = out_dir / "chunks_meta.json"
+    with tempfile.NamedTemporaryFile(suffix=".index", delete=False) as tmp:
+        tmp_index_path = tmp.name
+    faiss.write_index(index, tmp_index_path)
+    storage.write("faiss.index", Path(tmp_index_path).read_bytes())
+    Path(tmp_index_path).unlink(missing_ok=True)
 
-    faiss.write_index(index, str(index_path))
-    meta_path.write_text(json.dumps(all_chunks, ensure_ascii=False, indent=2), encoding="utf-8")
+    meta_bytes = json.dumps(all_chunks, ensure_ascii=False, indent=2).encode()
+    storage.write("chunks_meta.json", meta_bytes)
 
     logger.success(
-        "Index built | vectors={} dim={} -> {} + {}",
+        "Index built | vectors={} dim={}",
         index.ntotal,
         dim,
-        index_path,
-        meta_path,
     )
