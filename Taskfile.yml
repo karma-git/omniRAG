@@ -65,14 +65,13 @@ tasks:
       - docker build -t omnirag:local .
 
   docker:push:
-    desc: "Build & push to GHCR  |  task docker:push -- 1.2.3"
+    desc: "Build & push to GHCR (amd64 + arm64)  |  task docker:push -- 1.2.3"
     vars:
       VERSION: '{{.CLI_ARGS}}'
     requires:
       vars: [VERSION]
     cmds:
-      - docker build --platform linux/amd64
+      - docker buildx build --platform linux/amd64,linux/arm64
+          --push
           -t {{.IMAGE}}:{{.VERSION}}
           -t {{.IMAGE}}:latest .
-      - docker push {{.IMAGE}}:{{.VERSION}}
-      - docker push {{.IMAGE}}:latest
