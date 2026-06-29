@@ -4,13 +4,17 @@ Supported formats: .txt, .md, .pdf
 
 Usage:
   python -m scripts.indexer --docs-dir ./my_docs --out-dir ./data
+  python -m scripts.indexer --storage-backend s3 --s3-bucket my-bucket
 
   # With AI proposition extraction (better retrieval, costs more):
   python -m scripts.indexer --extract-propositions
 
 Options:
   --docs-dir            DIR   Directory with source documents (default: ./docs)
-  --out-dir             DIR   Output directory for faiss.index + chunks_meta.json (default: ./data)
+  --storage-backend     STR   Where to store index artifacts: local|s3 (default: local)
+  --out-dir             DIR   [local] Output directory (default: ./data)
+  --s3-bucket           STR   [s3] S3 bucket name (or env S3_BUCKET)
+  --s3-prefix           STR   [s3] Key prefix inside the bucket (default: faiss)
   --chunk-size          INT   Max characters per chunk (default: 800)
   --overlap             INT   Overlap between adjacent chunks in chars (default: 100)
   --model               STR   OpenAI embedding model (default: text-embedding-3-small)
@@ -18,9 +22,9 @@ Options:
   --extract-propositions      Use LLM to extract atomic propositions before embedding
   --chat-model          STR   Chat model for proposition extraction (default: gpt-4o-mini)
 
-Output files:
-  <out-dir>/faiss.index
-  <out-dir>/chunks_meta.json  — list of {"text", "source", "chunk_id"[, "proposition"]}
+Output artifacts (faiss.index, chunks_meta.json, embed_cache.json):
+  local: written to <out-dir>/
+  s3:    uploaded to s3://<bucket>/<prefix>/
 """
 
 from __future__ import annotations
@@ -33,6 +37,7 @@ from pathlib import Path
 from loguru import logger
 
 from scripts.indexer.pipeline import build_index
+from scripts.indexer.storage import LocalStorage, S3Storage, StorageBackend
 
 
 def main() -> None:
@@ -42,7 +47,14 @@ def main() -> None:
         epilog=__doc__,
     )
     parser.add_argument("--docs-dir", default="./docs", type=Path)
+    parser.add_argument(
+        "--storage-backend",
+        default=os.getenv("STORAGE_BACKEND", "local"),
+        choices=["local", "s3"],
+    )
     parser.add_argument("--out-dir", default="./data", type=Path)
+    parser.add_argument("--s3-bucket", default=os.getenv("S3_BUCKET"))
+    parser.add_argument("--s3-prefix", default=os.getenv("S3_PREFIX", "faiss"))
     parser.add_argument("--chunk-size", default=800, type=int)
     parser.add_argument("--overlap", default=100, type=int)
     parser.add_argument(
@@ -71,6 +83,17 @@ def main() -> None:
         logger.error("--docs-dir does not exist: {}", args.docs_dir)
         sys.exit(1)
 
+    storage: StorageBackend
+    if args.storage_backend == "s3":
+        if not args.s3_bucket:
+            logger.error("--storage-backend s3 requires --s3-bucket or S3_BUCKET env var")
+            sys.exit(1)
+        storage = S3Storage(bucket=args.s3_bucket, prefix=args.s3_prefix)
+        logger.info("Storage backend: s3://{}/{}/", args.s3_bucket, args.s3_prefix)
+    else:
+        storage = LocalStorage(args.out_dir)
+        logger.info("Storage backend: local ({})", args.out_dir)
+
     if args.extract_propositions:
         logger.info(
             "Proposition extraction enabled (chat_model={}). "
@@ -80,7 +103,7 @@ def main() -> None:
 
     build_index(
         docs_dir=args.docs_dir,
-        out_dir=args.out_dir,
+        storage=storage,
         chunk_size=args.chunk_size,
         overlap=args.overlap,
         embedding_model=args.model,

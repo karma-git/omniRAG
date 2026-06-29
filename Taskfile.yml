@@ -52,6 +52,11 @@ tasks:
     cmds:
       - docker compose run --rm indexer --no-cache {{.CLI_ARGS}}
 
+  index:s3:
+    desc: "Index docs and upload artifacts to S3  |  S3_BUCKET=my-bucket task index:s3"
+    cmds:
+      - docker compose run --rm -e S3_BUCKET indexer --storage-backend s3 {{.CLI_ARGS}}
+
   # ── Docker ───────────────────────────────────────────────────────────────────
 
   docker:build:
