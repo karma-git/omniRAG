@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/karma-git/omniRAG/compare/omnirag-v0.2.0...omnirag-v0.2.1) (2026-06-29)
+
+
+### Bug Fixes
+
+* docker build ([#8](https://github.com/karma-git/omniRAG/issues/8)) ([1eacf44](https://github.com/karma-git/omniRAG/commit/1eacf4496a637621a952a607ca9d4ed4ff047e56))
+
 ## [0.2.0](https://github.com/karma-git/omniRAG/compare/omnirag-v0.1.2...omnirag-v0.2.0) (2026-06-29)
 
 
