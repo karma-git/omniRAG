@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/karma-git/omniRAG/compare/omnirag-v0.2.1...omnirag-v0.3.0) (2026-07-08)
+
+
+### Features
+
+* add fast-mcp ([#10](https://github.com/karma-git/omniRAG/issues/10)) ([01153da](https://github.com/karma-git/omniRAG/commit/01153da555b058c5e48776e1c6ba2382b76fd381))
+
 ## [0.2.1](https://github.com/karma-git/omniRAG/compare/omnirag-v0.2.0...omnirag-v0.2.1) (2026-06-29)
 
 

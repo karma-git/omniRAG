@@ -1,6 +1,6 @@
 [project]
 name = "omnirag"
-version = "0.2.1"
+version = "0.3.0"
 description = "Stateless multi-provider RAG chatbot orchestrator"
 requires-python = ">=3.12"
 dependencies = [
