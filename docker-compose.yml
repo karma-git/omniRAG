@@ -34,6 +34,19 @@ services:
       - ./data:/app/data:ro
       - ./user:/app/user:ro
 
+  # ── MCP server (SSE transport) ────────────────────────────────────────────
+  # Claude Desktop / Cursor / any MCP client → http://localhost:8001/sse
+  omnirag-mcp:
+    <<: *app
+    environment:
+      CHAT_PROVIDER: mcp
+      MCP_TRANSPORT: sse
+    ports:
+      - "${MCP_PORT:-8001}:8001"
+    volumes:
+      - ./data:/app/data:ro
+      - ./user:/app/user:ro
+
   # ── Indexer (one-off, run via: task index) ────────────────────────────────
   indexer:
     <<: *app

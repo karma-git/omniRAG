@@ -18,6 +18,7 @@ class ChatProvider(StrEnum):
     DISCORD = "discord"  # reserved for Phase 2
     SLACK = "slack"
     WEB = "web"
+    MCP = "mcp"
 
 
 class LLMProvider(StrEnum):
@@ -106,6 +107,11 @@ class Settings(BaseSettings):
     # ── Web ───────────────────────────────────────────────────────────────────
     web_host: str = "0.0.0.0"
     web_port: int = 8000
+
+    # ── MCP ───────────────────────────────────────────────────────────────────
+    mcp_transport: str = "stdio"  # "stdio" | "sse"
+    mcp_host: str = "0.0.0.0"
+    mcp_port: int = 8001
 
     # ── RAG / FAISS ───────────────────────────────────────────────────────────
     faiss_source: FaissSource = FaissSource.LOCAL
@@ -197,7 +203,7 @@ class Settings(BaseSettings):
             raise ValueError("CHAT_PROVIDER=slack but SLACK_BOT_TOKEN is not set")
         if self.chat_provider == ChatProvider.SLACK and not self.slack_app_token:
             raise ValueError("CHAT_PROVIDER=slack but SLACK_APP_TOKEN is not set")
-        # WEB provider needs no token
+        # WEB and MCP providers need no token
         if self.faiss_source == FaissSource.S3 and not self.s3_bucket:
             raise ValueError("FAISS_SOURCE=s3 but S3_BUCKET is not set")
         return self

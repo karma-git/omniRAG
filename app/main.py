@@ -140,6 +140,11 @@ def _build_channel(settings: Settings, on_message, domain_description: str = "")
             on_message=on_message, settings=settings, system_prompt=domain_description
         )
 
+    if settings.chat_provider == ChatProvider.MCP:
+        from app.channels.mcp_channel import MCPChannel  # noqa: PLC0415
+
+        return MCPChannel(on_message=on_message, settings=settings)
+
     raise ValueError(f"Unknown CHAT_PROVIDER: {settings.chat_provider}")
 
 
@@ -157,6 +162,10 @@ async def main() -> None:
         _modes = settings.slack_modes
     elif settings.chat_provider == ChatProvider.WEB:
         _modes = f"{settings.web_host}:{settings.web_port}"
+    elif settings.chat_provider == ChatProvider.MCP:
+        _modes = f"transport={settings.mcp_transport}"
+        if settings.mcp_transport == "sse":
+            _modes += f" {settings.mcp_host}:{settings.mcp_port}"
     else:
         _modes = "N/A"
     logger.info(
