@@ -121,6 +121,7 @@ class Settings(BaseSettings):
     s3_bucket: str | None = None
     s3_index_key: str = "faiss/faiss.index"
     s3_meta_key: str = "faiss/chunks_meta.json"
+    s3_version_key: str = "faiss/version.json"
     aws_access_key_id: str | None = None
     aws_secret_access_key: str | None = None
     aws_region: str = "us-east-1"
@@ -132,6 +133,13 @@ class Settings(BaseSettings):
     # Optional path to a markdown file with custom bot instructions.
     # If the file exists, its content replaces rag_domain_description in the system prompt.
     system_prompt_path: str | None = "./user/system-prompt.md"
+
+    # ── Hot reload admin endpoint ────────────────────────────────────────────
+    hot_reload_enabled: bool = False
+    hot_reload_host: str = "0.0.0.0"
+    hot_reload_port: int = 8081
+    hot_reload_token: str | None = None
+    hot_reload_poll_interval_seconds: int = 60
 
     # ── Derived / cached properties ───────────────────────────────────────────
     @property
@@ -206,6 +214,10 @@ class Settings(BaseSettings):
         # WEB and MCP providers need no token
         if self.faiss_source == FaissSource.S3 and not self.s3_bucket:
             raise ValueError("FAISS_SOURCE=s3 but S3_BUCKET is not set")
+        if self.hot_reload_enabled and not self.hot_reload_token:
+            raise ValueError("HOT_RELOAD_ENABLED=true but HOT_RELOAD_TOKEN is not set")
+        if self.hot_reload_poll_interval_seconds < 0:
+            raise ValueError("HOT_RELOAD_POLL_INTERVAL_SECONDS must be >= 0")
         return self
 
 

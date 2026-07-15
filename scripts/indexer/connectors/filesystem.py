@@ -5,6 +5,9 @@ from pathlib import Path
 
 from loguru import logger
 
+from scripts.indexer.connectors.base import SourceDocument
+from scripts.indexer.embed_cache import EmbedCache
+
 
 def extract_text_txt(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
@@ -29,6 +32,7 @@ _EXTRACTORS = {
 
 
 def iter_documents(docs_dir: Path, recursive: bool) -> Iterator[tuple[Path, str]]:
+    """Backward-compatible filesystem iterator."""
     glob = "**/*" if recursive else "*"
     for path in sorted(docs_dir.glob(glob)):
         if not path.is_file():
@@ -43,3 +47,16 @@ def iter_documents(docs_dir: Path, recursive: bool) -> Iterator[tuple[Path, str]
             yield path, text
         else:
             logger.warning("Empty content: {}", path)
+
+
+class FilesystemSource:
+    def __init__(self, docs_dir: Path, recursive: bool = True) -> None:
+        self._docs_dir = docs_dir
+        self._recursive = recursive
+
+    def iter_documents(self, cache: EmbedCache | None = None) -> list[SourceDocument]:
+        del cache
+        return [
+            SourceDocument(text=text, source=str(path.relative_to(self._docs_dir)))
+            for path, text in iter_documents(self._docs_dir, self._recursive)
+        ]

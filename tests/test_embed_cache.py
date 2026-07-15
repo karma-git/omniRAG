@@ -69,6 +69,26 @@ def test_cache_len(tmp_path: Path) -> None:
     assert len(cache) == 2
 
 
+def test_cache_persists_connector_documents(tmp_path: Path) -> None:
+    path = tmp_path / "cache.json"
+    cache = EmbedCache(path)
+    cache.replace_documents("confluence", {"42": {"version": 2, "content": "hello"}})
+    cache.save()
+
+    loaded = EmbedCache(path)
+    assert loaded.get_documents("confluence")["42"]["version"] == 2
+
+
+def test_legacy_flat_cache_is_migrated(tmp_path: Path) -> None:
+    path = tmp_path / "cache.json"
+    legacy = EmbedCache(path)
+    legacy.set("hello", [1.0, 2.0])
+    path.write_text(__import__("json").dumps(legacy._data))
+
+    loaded = EmbedCache(path)
+    assert loaded.get("hello") == pytest.approx([1.0, 2.0])
+
+
 def test_corrupt_cache_file_starts_fresh(tmp_path: Path) -> None:
     path = tmp_path / "cache.json"
     path.write_text("not valid json")

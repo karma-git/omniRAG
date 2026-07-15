@@ -10,20 +10,31 @@ from loguru import logger
 
 
 class EmbedCache:
-    """Persistent SHA-256 → float32 embedding cache backed by a JSON file.
+    """Persistent embeddings and source-document cache backed by one JSON file.
 
     Vectors are stored as base64-encoded float32 blobs (~8 KB each) rather than
-    raw JSON arrays (~16 KB each) to keep the file size reasonable.
+    raw JSON arrays (~16 KB each) to keep the file size reasonable.  Schema v2
+    also stores connector state so an unchanged remote document can participate
+    in a full FAISS rebuild without downloading its body again.
     """
 
     def __init__(self, path: Path) -> None:
         self._path = path
         self._data: dict[str, str] = {}  # sha256 hex → base64-encoded float32 blob
+        self._documents: dict[str, dict[str, dict]] = {}
         self._hits = 0
         self._misses = 0
         if path.exists():
             try:
-                self._data = json.loads(path.read_text(encoding="utf-8"))
+                raw = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(raw, dict) and raw.get("schema_version") == 2:
+                    self._data = raw.get("embeddings", {})
+                    self._documents = raw.get("documents", {})
+                elif isinstance(raw, dict):
+                    # v1 was a flat sha256 -> encoded-vector mapping.
+                    self._data = raw
+                else:
+                    raise ValueError("embed cache root must be a JSON object")
                 logger.info("Embed cache loaded: {} entries ({})", len(self._data), path)
             except Exception as exc:
                 logger.warning("Could not load embed cache ({}), starting fresh", exc)
@@ -40,8 +51,21 @@ class EmbedCache:
         self._data[_sha256(text)] = _encode(vector)
 
     def save(self) -> None:
-        self._path.write_text(json.dumps(self._data, separators=(",", ":")), encoding="utf-8")
+        payload = {
+            "schema_version": 2,
+            "embeddings": self._data,
+            "documents": self._documents,
+        }
+        self._path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
         logger.info("Embed cache saved: {} entries ({})", len(self._data), self._path)
+
+    def get_documents(self, source: str) -> dict[str, dict]:
+        """Return a copy of cached documents for a connector namespace."""
+        return dict(self._documents.get(source, {}))
+
+    def replace_documents(self, source: str, documents: dict[str, dict]) -> None:
+        """Replace connector state, removing documents absent after reconciliation."""
+        self._documents[source] = documents
 
     @property
     def hits(self) -> int:

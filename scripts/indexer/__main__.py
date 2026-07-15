@@ -1,10 +1,11 @@
 """Document indexer: normalize → chunk → embed → FAISS index.
 
-Supported formats: .txt, .md, .pdf
+Supported sources: filesystem (.txt, .md, .pdf) and Confluence.
 
 Usage:
   python -m scripts.indexer --docs-dir ./my_docs --out-dir ./data
   python -m scripts.indexer --storage-backend s3 --s3-bucket my-bucket
+  python -m scripts.indexer --source confluence --once
 
   # With AI proposition extraction (better retrieval, costs more):
   python -m scripts.indexer --extract-propositions
@@ -22,7 +23,7 @@ Options:
   --extract-propositions      Use LLM to extract atomic propositions before embedding
   --chat-model          STR   Chat model for proposition extraction (default: gpt-4o-mini)
 
-Output artifacts (faiss.index, chunks_meta.json, embed_cache.json):
+Output artifacts (faiss.index, chunks_meta.json, embed_cache.json, version.json):
   local: written to <out-dir>/
   s3:    uploaded to s3://<bucket>/<prefix>/
 """
@@ -47,6 +48,16 @@ def main() -> None:
         epilog=__doc__,
     )
     parser.add_argument("--docs-dir", default="./docs", type=Path)
+    parser.add_argument(
+        "--source",
+        default=os.getenv("INDEX_SOURCE", "filesystem"),
+        choices=["filesystem", "confluence"],
+    )
+    parser.add_argument(
+        "--once",
+        action="store_true",
+        help="Run one indexing cycle (explicit CronJob/manual-trigger marker)",
+    )
     parser.add_argument(
         "--storage-backend",
         default=os.getenv("STORAGE_BACKEND", "local"),
@@ -79,7 +90,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if not args.docs_dir.exists():
+    if args.source == "filesystem" and not args.docs_dir.exists():
         logger.error("--docs-dir does not exist: {}", args.docs_dir)
         sys.exit(1)
 
@@ -101,6 +112,19 @@ def main() -> None:
             args.chat_model,
         )
 
+    source = None
+    if args.source == "confluence":
+        from scripts.indexer.connectors.confluence import (  # noqa: PLC0415
+            ConfluenceConfig,
+            ConfluenceSource,
+        )
+
+        try:
+            source = ConfluenceSource(ConfluenceConfig.from_env())
+        except ValueError as exc:
+            logger.error("Invalid Confluence configuration: {}", exc)
+            sys.exit(2)
+
     build_index(
         docs_dir=args.docs_dir,
         storage=storage,
@@ -111,6 +135,7 @@ def main() -> None:
         use_propositions=args.extract_propositions,
         chat_model=args.chat_model,
         use_cache=not args.no_cache,
+        source=source,
     )
 
 

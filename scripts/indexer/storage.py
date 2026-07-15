@@ -1,4 +1,4 @@
-"""Storage backends for indexer output artifacts (faiss.index, chunks_meta.json, embed_cache.json)."""
+"""Storage backends for indexer snapshot artifacts."""
 
 from __future__ import annotations
 
