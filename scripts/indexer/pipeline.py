@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import sys
 import tempfile
+from datetime import UTC, datetime
+from hashlib import sha256
 from pathlib import Path
 
 import faiss
@@ -11,7 +13,7 @@ from loguru import logger
 from openai import OpenAI
 
 from app.core.normalizer import normalize
-from scripts.indexer.connectors import iter_documents
+from scripts.indexer.connectors import DocumentSource, FilesystemSource
 from scripts.indexer.embed_cache import EmbedCache
 from scripts.indexer.propositions import extract_propositions
 from scripts.indexer.storage import StorageBackend
@@ -113,6 +115,7 @@ def build_index(
     use_propositions: bool = False,
     chat_model: str = "gpt-4o-mini",
     use_cache: bool = True,
+    source: DocumentSource | None = None,
 ) -> None:
     client = OpenAI()
 
@@ -130,8 +133,10 @@ def build_index(
     texts_to_embed: list[str] = []
     chunk_id = 0
 
-    for doc_path, raw_text in iter_documents(docs_dir, recursive):
-        clean_text = normalize(raw_text)
+    document_source = source or FilesystemSource(docs_dir, recursive)
+    documents = document_source.iter_documents(cache)
+    for document in documents:
+        clean_text = normalize(document.text)
         for chunk in chunk_text(clean_text, chunk_size, overlap):
             if use_propositions:
                 props = extract_propositions(chunk, client, chat_model)
@@ -141,8 +146,9 @@ def build_index(
                         {
                             "text": chunk,  # original chunk returned to LLM as context
                             "proposition": prop,  # atomic fact used for embedding/retrieval
-                            "source": str(doc_path.name),
+                            "source": document.source,
                             "chunk_id": chunk_id,
+                            **document.metadata,
                         }
                     )
                     texts_to_embed.append(prop)
@@ -151,8 +157,9 @@ def build_index(
                 all_chunks.append(
                     {
                         "text": chunk,
-                        "source": str(doc_path.name),
+                        "source": document.source,
                         "chunk_id": chunk_id,
+                        **document.metadata,
                     }
                 )
                 texts_to_embed.append(chunk)
@@ -169,10 +176,6 @@ def build_index(
 
     if cache:
         cache.save()
-        cache_data = Path(cache._path).read_bytes()
-        storage.write("embed_cache.json", cache_data)
-        if _tmp_dir:
-            _tmp_dir.cleanup()
 
     embeddings = np.array(all_vecs, dtype=np.float32)
     norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
@@ -187,14 +190,37 @@ def build_index(
     with tempfile.NamedTemporaryFile(suffix=".index", delete=False) as tmp:
         tmp_index_path = tmp.name
     faiss.write_index(index, tmp_index_path)
-    storage.write("faiss.index", Path(tmp_index_path).read_bytes())
+    index_bytes = Path(tmp_index_path).read_bytes()
     Path(tmp_index_path).unlink(missing_ok=True)
 
     meta_bytes = json.dumps(all_chunks, ensure_ascii=False, indent=2).encode()
+    cache_bytes = Path(cache._path).read_bytes() if cache else None
+
+    # Publish data first and the manifest last. Readers verify both checksums and
+    # retain the previous in-memory index if they observe an incomplete upload.
+    if cache_bytes is not None:
+        storage.write("embed_cache.json", cache_bytes)
+    storage.write("faiss.index", index_bytes)
     storage.write("chunks_meta.json", meta_bytes)
+    version = sha256(index_bytes + meta_bytes).hexdigest()
+    manifest = {
+        "version": version,
+        "updated_at": datetime.now(UTC).isoformat(),
+        "artifacts": {
+            "faiss.index": {"sha256": sha256(index_bytes).hexdigest()},
+            "chunks_meta.json": {"sha256": sha256(meta_bytes).hexdigest()},
+        },
+    }
+    storage.write(
+        "version.json",
+        json.dumps(manifest, separators=(",", ":")).encode(),
+    )
+    if _tmp_dir:
+        _tmp_dir.cleanup()
 
     logger.success(
-        "Index built | vectors={} dim={}",
+        "Index built | vectors={} dim={} version={}",
         index.ntotal,
         dim,
+        version[:12],
     )

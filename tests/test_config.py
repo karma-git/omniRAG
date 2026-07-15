@@ -57,3 +57,8 @@ def test_telegram_allowed_ids_parsed() -> None:
 def test_empty_allowed_ids() -> None:
     s = Settings(**_base_env(telegram_allowed_group_ids=""))
     assert s.telegram_allowed_ids == set()
+
+
+def test_hot_reload_requires_token() -> None:
+    with pytest.raises(ValidationError, match="HOT_RELOAD_TOKEN"):
+        Settings(**_base_env(hot_reload_enabled=True, hot_reload_token=None))

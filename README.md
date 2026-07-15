@@ -127,7 +127,52 @@ s3://<bucket>/faiss/
   faiss.index          ← pods download at startup
   chunks_meta.json     ← pods download at startup
   embed_cache.json     ← indexer only (avoids re-embedding unchanged text)
+  version.json         ← snapshot version + artifact checksums
 ```
+
+## Confluence auto-sync and hot reload
+
+Run Confluence indexing as a Kubernetes CronJob (an example is provided in
+`deploy/k8s/confluence-indexer-cronjob.yaml`) or manually:
+
+```bash
+INDEX_SOURCE=confluence \
+CONFLUENCE_DEPLOYMENT=cloud \
+CONFLUENCE_BASE_URL=https://example.atlassian.net \
+CONFLUENCE_EMAIL=bot@example.com \
+CONFLUENCE_API_TOKEN=... \
+CONFLUENCE_SPACE_KEYS=OPS,ENG \
+STORAGE_BACKEND=s3 S3_BUCKET=my-bucket \
+python -m scripts.indexer --source confluence --once --storage-backend s3
+```
+
+Use `CONFLUENCE_CQL` instead of, or together with, space keys. For Server/Data
+Center set `CONFLUENCE_DEPLOYMENT=server` and `CONFLUENCE_PAT`. The connector
+keeps page versions and normalized bodies in `embed_cache.json`: unchanged page
+bodies are not fetched, unchanged text reuses embeddings, and pages no longer
+returned by discovery are removed during the next rebuild.
+
+The indexer uploads `version.json` last. Enable the authenticated internal
+endpoint on every bot pod to activate a new, checksum-verified snapshot without
+restarting the process:
+
+```env
+HOT_RELOAD_ENABLED=true
+HOT_RELOAD_PORT=8081
+HOT_RELOAD_TOKEN=<long-random-secret>
+HOT_RELOAD_POLL_INTERVAL_SECONDS=60
+```
+
+```bash
+curl -X POST http://omnirag-bot:8081/internal/reload \
+  -H "Authorization: Bearer $HOT_RELOAD_TOKEN"
+```
+
+The new FAISS index and metadata are loaded and validated before an atomic RAM
+swap. Every replica polls the small manifest independently, so all pods converge
+without relying on a load-balanced reload request. Failed or partial uploads
+leave the previous snapshot active. Keep the endpoint cluster-internal; do not
+expose it through the public ingress.
 
 ---
 
@@ -151,6 +196,7 @@ s3://<bucket>/faiss/
 | `S3_BUCKET` | — | Required when `FAISS_SOURCE=s3` or `STORAGE_BACKEND=s3` |
 | `S3_INDEX_KEY` | `faiss/faiss.index` | S3 key for the FAISS index |
 | `S3_META_KEY` | `faiss/chunks_meta.json` | S3 key for chunk metadata |
+| `S3_VERSION_KEY` | `faiss/version.json` | Snapshot manifest checked by hot reload |
 | `S3_PREFIX` | `faiss` | Key prefix used by the indexer |
 | `STORAGE_BACKEND` | `local` | `local` \| `s3` — where the indexer writes artifacts |
 | `RAG_MIN_SIMILARITY` | `0.30` | Queries below this score are rejected as off-topic |

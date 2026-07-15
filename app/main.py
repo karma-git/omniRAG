@@ -190,7 +190,18 @@ async def main() -> None:
     channel = _build_channel(
         settings, on_message=orchestrator, domain_description=domain_description
     )
-    await channel.start()
+    if settings.hot_reload_enabled:
+        from app.core.reload_server import ReloadServer  # noqa: PLC0415
+
+        reload_server = ReloadServer(rag, settings)
+        logger.info(
+            "Hot reload endpoint enabled | {}:{}",
+            settings.hot_reload_host,
+            settings.hot_reload_port,
+        )
+        await asyncio.gather(channel.start(), reload_server.start(), reload_server.watch())
+    else:
+        await channel.start()
 
 
 if __name__ == "__main__":
